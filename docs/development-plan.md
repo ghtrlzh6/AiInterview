@@ -7,6 +7,134 @@
 
 ---
 
+## 四人分工方案
+
+> **分工原则**：按模块垂直切分，减少相互等待；前后端各有主责但需联调配合；A/B/C 负责后端，D 负责全部前端。  
+> 每周 Sprint 启动时对齐接口契约（Request/Response DTO），避免前后端并行时的 blocking。
+
+### 人员角色总览
+
+| 成员 | 角色定位 | 核心负责模块 |
+|------|----------|-------------|
+| **成员 A** | 后端基础架构 & 安全认证 | 项目脚手架、数据库、Security/JWT、用户模块、管理后台后端 |
+| **成员 B** | 后端面试核心 & AI 对话 | 题库模块、面试模块、LLM/SSE 流式、追问策略、多岗位扩展 |
+| **成员 C** | 后端评估报告 & AI 增强 | 评估模块、报告模块、RAG 知识检索、成长曲线、资源推荐 |
+| **成员 D** | 前端全栈 | 全部前端页面与组件（Vue3 + ECharts + 语音输入） |
+
+---
+
+### 成员 A — 后端基础架构 & 安全认证
+
+**模块**：基础设施 / 认证模块 / 用户模块 / 管理后台（后端）
+
+| Sprint | Task | 内容 | 优先级 |
+|--------|------|------|--------|
+| Sprint 0 | Task 0.1 | Spring Boot 脚手架 + Docker Compose（MySQL/Redis/Chroma） | 🔴 |
+| Sprint 0 | Task 0.2 | 数据库建表脚本 DDL（14 张表 + 索引） | 🔴 |
+| Sprint 0 | Task 0.3 | 初始化数据 DML（岗位/配置/admin 账号） | 🔴 |
+| Sprint 0 | Task 0.4 | MyBatis-Plus 配置 + `Result<T>` + 全局异常处理 | 🔴 |
+| Sprint 0 | Task 0.5 | Spring Security + JWT 过滤器链 | 🔴 |
+| Sprint 0 | Task 0.6 | AuthController（注册/登录/刷新/登出） | 🔴 |
+| Sprint 0 | Task 0.7 | UserController + `LlmService` 接口定义（占位） | 🔴 |
+| Sprint 3.5 | Task 3.5.1 | `SystemConfigService` 热更新配置服务 | 🟡 |
+| Sprint 3.5 | Task 3.5.2 | `AdminStatsController` + `AdminPositionController` | 🟡 |
+| Sprint 3.5 | Task 3.5.4 | `AdminKnowledgeController` + `AdminUserController` | 🟡 |
+| Sprint 3.5 | Task 3.5.5 | `AdminAiConfigController`（AI配置 + Prompt 管理） | 🟡 |
+| Sprint 4 | Task 4.5 | `AsrController`（讯飞 ASR 备用方案） | 🟢 |
+
+**关键产出**：可运行的开发环境、完整认证流程、管理后台后端 API  
+**与他人接口约定**：`Result<T>` 格式、JWT 验证规则、`LlmService` 接口签名（Sprint 0 末与 B 对齐）
+
+---
+
+### 成员 B — 后端面试核心 & AI 对话
+
+**模块**：题库模块 / 面试模块 / AI 对话引擎 / 多岗位扩展
+
+| Sprint | Task | 内容 | 优先级 |
+|--------|------|------|--------|
+| Sprint 1 | Task 1.1 | Java 后端题库 SQL 数据（30 题） | 🔴 |
+| Sprint 1 | Task 1.2 | `QuestionController` + `QuestionService` + `QuestionMapper` | 🔴 |
+| Sprint 1 | Task 1.3 | `DeepSeekLlmService` 实现 + `interview_system.txt` Prompt | 🔴 |
+| Sprint 1 | Task 1.4 | 题目按难度比例抽取 + 面试会话创建（`startInterview()`） | 🔴 |
+| Sprint 1 | Task 1.5 | `InterviewController.start`（`POST /interviews/start`） | 🔴 |
+| Sprint 1 | Task 1.6 | `InterviewController`（message / end / getMessages） | 🔴 |
+| Sprint 2 | Task 2.1 | `LlmService.chatStream()` 流式实现（OkHttp SSE） | 🔴 |
+| Sprint 2 | Task 2.2 | `FollowUpStrategy` + 追问 Prompt（JSON 结构化输出） | 🔴 |
+| Sprint 2 | Task 2.3 | `InterviewController.message` 改造为 SSE + 状态机防护 | 🔴 |
+| Sprint 3.5 | Task 3.5.3 | `AdminQuestionController`（题目 CRUD + 批量导入） | 🟡 |
+| Sprint 4 | Task 4.1 | Web 前端题库 SQL 数据（30 题） | 🔴 |
+| Sprint 4 | Task 4.2 | Python 算法题库 SQL（20 题） + 各岗位定制 Prompt | 🔴 |
+
+**关键产出**：完整面试对话后端、SSE 流式推送、追问逻辑、三岗位题库  
+**与他人接口约定**：`POST /interviews/start` Response（与 D 对齐）、SSE 事件格式（`token`/`done`/`next_question`/`interview_end`）
+
+---
+
+### 成员 C — 后端评估报告 & AI 增强
+
+**模块**：评估模块 / 报告模块 / RAG 知识检索 / 成长曲线 / 资源推荐
+
+| Sprint | Task | 内容 | 优先级 |
+|--------|------|------|--------|
+| Sprint 3 | Task 3.1 | 评估 Prompt 模板设计（逐题评分 + 综合报告） | 🔴 |
+| Sprint 3 | Task 3.2 | `AiEvaluationService` 异步逐题评分 + `t_dimension_score` 持久化 | 🔴 |
+| Sprint 3 | Task 3.3 | 综合报告生成 + `t_evaluation_report` 状态更新 + `t_growth_record` 写入 | 🔴 |
+| Sprint 3 | Task 3.4 | `ReportController`（报告详情 / 历史列表） | 🔴 |
+| Sprint 5 | Task 5.1 | 知识库文档内容录入（每岗位 10+ 篇 SQL） | 🟡 |
+| Sprint 5 | Task 5.2 | `RagService` 向量化（Embedding → Chroma） | 🟡 |
+| Sprint 5 | Task 5.3 | `RagService.search()` + 评估服务集成 RAG | 🟡 |
+| Sprint 5 | Task 5.4 | `GrowthController`（成长数据 + 趋势计算） | 🟡 |
+| Sprint 5 | Task 5.6 | 学习资源 SQL + `ResourceService` 推荐逻辑 | 🟡 |
+| Sprint 5 | Task 5.7 | `ResourceController`（推荐接口 + 用户反馈接口） | 🟡 |
+| Sprint 5 | Task 5.8 | 演示数据预置 + 演示脚本（`demo_student` 账号与历史记录） | 🔴 |
+
+**关键产出**：多维度自动评分、结构化报告、RAG 检索增强、成长曲线数据、资源推荐  
+**与他人接口约定**：`GET /reports/{id}` Response 结构（与 D 对齐）、`GET /growth` 返回时间序列格式
+
+---
+
+### 成员 D — 前端全栈
+
+**模块**：全部 Vue3 前端（用户端 + 管理后台）
+
+| Sprint | Task | 内容 | 优先级 |
+|--------|------|------|--------|
+| Sprint 0 | Task 0.8 | 前端项目初始化（Vite+Vue3+TS+Pinia） + 登录/注册页 + 路由守卫 | 🔴 |
+| Sprint 1 | Task 1.7 | 岗位选择页 + `InterviewRoom.vue`（对话气泡 + 进度 + 发送） | 🔴 |
+| Sprint 1 | Task 1.8 | 面试结束占位页 + Sprint 1 端到端联调 | 🔴 |
+| Sprint 2 | Task 2.4 | SSE 接收改造（打字机效果 + 题目进度实时更新） | 🔴 |
+| Sprint 2 | Task 2.5 | 断线重连 + 网络状态指示组件 | 🔴 |
+| Sprint 3 | Task 3.5 | 报告详情页（雷达图 + 逐题点评 + Markdown 渲染） | 🔴 |
+| Sprint 3 | Task 3.6 | 历史报告列表 + 报告轮询自动跳转 | 🔴 |
+| Sprint 3.5 | Task 3.5.6 | `AdminLayout` + 路由守卫 + 管理仪表盘（统计卡片 + 柱状图） | 🟡 |
+| Sprint 3.5 | Task 3.5.7 | 岗位管理页 + 题目管理页（CRUD + 批量导入） | 🟡 |
+| Sprint 3.5 | Task 3.5.8 | AI 配置页（掩码 + 连通性测试 + Prompt 编辑器） | 🟡 |
+| Sprint 3.5 | Task 3.5.9 | 知识库管理页 + 用户管理页 | 🟡 |
+| Sprint 4 | Task 4.3 | 三岗位前端开放 + 岗位列表动态渲染 | 🔴 |
+| Sprint 4 | Task 4.4 | Web Speech API 语音输入组件（降级兼容） | 🟡 |
+| Sprint 5 | Task 5.5 | 成长曲线页（ECharts 折线图 + 趋势标签） | 🟡 |
+| Sprint 5 | Task 5.7 | 报告页推荐资源区块 + 反馈按钮 | 🟡 |
+
+**关键产出**：完整用户侧界面、管理后台所有页面、成长曲线可视化  
+**与他人接口约定**：与 A/B/C 在每 Sprint 启动时对齐 Request/Response 字段；SSE 事件格式（与 B 对齐）
+
+---
+
+### 各 Sprint 并行任务分配速查
+
+| Sprint | 成员 A | 成员 B | 成员 C | 成员 D |
+|--------|--------|--------|--------|--------|
+| **Sprint 0**（第1周） | Task 0.1~0.7 全部基础设施 | — | — | Task 0.8 前端初始化 |
+| **Sprint 1**（第2-3周） | — | Task 1.1~1.6 面试后端 | — | Task 1.7~1.8 面试前端 |
+| **Sprint 2**（第4周） | — | Task 2.1~2.3 SSE/追问 | — | Task 2.4~2.5 前端SSE改造 |
+| **Sprint 3**（第5周） | — | — | Task 3.1~3.4 评估报告后端 | Task 3.5~3.6 报告前端 |
+| **Sprint 3.5**（第6周） | Task 3.5.1/2/4/5 管理后台后端 | Task 3.5.3 题目管理 | — | Task 3.5.6~3.5.9 管理后台前端 |
+| **Sprint 4**（第6-7周） | Task 4.5 ASR | Task 4.1~4.2 多岗位题库+Prompt | — | Task 4.3~4.4 三岗位前端+语音 |
+| **Sprint 5**（第7-8周） | — | — | Task 5.1~5.8 RAG+成长+推荐 | Task 5.5/5.7 成长/推荐前端 |
+
+---
+
 ## Sprint 总览
 
 | Sprint | 名称 | 周期 | 任务数 | 交付物（可演示） |
@@ -791,17 +919,6 @@
 | P2 加分 | 学习资源推荐 | Sprint 5 |
 | P3 锦上添花 | 报告分享链接 | Sprint 5+ |
 | P3 锦上添花 | 移动端响应式 | Sprint 5+ |
-
----
-
-## 分工建议（3-4 人团队）
-
-| 角色 | 职责 | 主要 Sprint |
-|------|------|-------------|
-| 后端开发 A | 业务 + 数据库 + 管理接口 | S0 认证+Admin Security、S1-S4 面试/报告/岗位、S3.5 Admin Controllers |
-| 后端开发 B | AI 集成 | S1-S2 LLM 封装 + Prompt、S3 评估引擎、S3.5 SystemConfigService、S5 RAG |
-| 前端开发 | 全部前端 | S0-S5 用户侧所有页面、S3.5 管理后台全部页面 + 图表 |
-| 全栈/架构 | 统筹 + 联调 | 全程：环境、接口联调、演示准备 |
 
 ---
 
