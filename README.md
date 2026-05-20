@@ -1,0 +1,5 @@
+docs文件夹下有项目的指导文件
+ReadProject.md是总体描述
+development-plan.md包括分工和开发计划
+architecture.md包括架构设计和模块划分
+
