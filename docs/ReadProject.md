@@ -28,25 +28,26 @@
 
 ### 核心功能模块（4 个）
 
-1. **岗位化题库与知识库** — 支持 Java 后端、Web 前端、Python 算法三个岗位，题型涵盖技术知识、项目深挖、场景题、行为题；知识库作为 RAG 检索基础
+1. **岗位化题库 + 层级知识库** — 同一岗位四类题型不变；另有 **多级目录知识库**（`GROUP`/`TOPIC_POINT` + **整块 Markdown 正文**，前台树形展示 + RAG 切块检索）。题目通过 `primary_kb_module_id`（大模块归类）与 `t_question_kb_point`（可 0～N 条具体知识点叶节点）与知识库关联。**`BEHAVIOR`**：手撕编程（Hot100 题池、`t_session_coding_submit` 快照、LLM 评审与追问）。
 2. **多模态交互面试** — 支持语音 + 文字双输入，AI 面试官具备多轮对话、动态追问能力
 3. **多维度评估分析** — 评估技术正确性、知识深度、逻辑严谨性、语言表达、自信度等，生成结构化评估报告
 4. **个性化能力提升** — 基于历史面试数据分析短板，推荐学习资源，可视化成长曲线
 
-### 目标岗位（3 个）
+### 目标岗位（4 个）
 
 | 岗位 | 标识符 | 核心技术栈 |
 |------|--------|------------|
 | Java 后端开发工程师 | `JAVA_BACKEND` | Java、Spring Boot、MySQL、Redis、JVM、设计模式 |
 | Web 前端开发工程师 | `WEB_FRONTEND` | HTML/CSS/JS、Vue3/React、工程化、性能优化 |
 | Python 算法工程师 | `PYTHON_ALGO` | Python、数据结构与算法、机器学习、LeetCode 类题目 |
+| 游戏客户端开发工程师 | `GAME_CLIENT` | C++/C#、Unity/Unreal、游戏引擎、图形渲染、内存管理、网络同步、性能优化 |
 
 ### 用户角色（2 种）
 
 | 角色 | `t_user.role` 值 | 权限 |
 |------|-----------------|------|
 | 普通用户 | `USER` | 使用面试功能、查看自己的报告 |
-| 管理员 | `ADMIN` | 全部用户权限 + 后台管理（题库/岗位/知识库/AI 配置/Prompt） |
+| 管理员 | `ADMIN` | 全部用户权限 + 后台管理（题库 / 类目化知识库 / AI 出题与配置 / Prompt） |
 
 - 管理员接口路径前缀：`/api/v1/admin/**`
 - Spring Security 配置：`.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")`
@@ -123,9 +124,9 @@
 - Prompt 模板统一放在 `resources/prompts/` 目录下
 
 ### RAG 流程
-1. 知识库文档 → 文本分块 → Embedding → 存入 Chroma
-2. 用户提问 → Embedding → 向量检索 → 召回相关知识片段
-3. 知识片段 + 用户回答 + 岗位上下文 → LLM → 生成评估结果
+1. `t_kb_article.body_markdown` → 文本分块 → Embedding → Chroma（`metadata`: `kb_node_id`、`article_id`、`code_path`、岗位可见性）
+2. 用户作答 / AI 出题上下文 → Embedding → 向量检索（可按岗位、`code_path` 前缀过滤）
+3. 召回片段 + 题库绑定的 TOPIC_POINT 摘要 → LLM → 出题或评估报告
 
 ### 语音识别
 - 浏览器端使用 Web Speech API（主方案）

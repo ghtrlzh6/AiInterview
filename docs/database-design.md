@@ -9,19 +9,34 @@
 ## ER 关系概览
 
 ```
+t_kb_node ─────┬── t_kb_article（整块 Markdown，挂载在「知识点」叶节点）
+               │           └── Chroma（按 article 切块向量化）
+               │
+               └── t_question ── M:N ── （仅关联 TOPIC_POINT 叶节点）
+
+t_kb_node ──（可选 FK）──── t_question.primary_kb_module_id（题干归属的知识「大模块」锚点）
+
+t_coding_challenge —─（可选 FK）──── t_question.coding_challenge_id（BEHAVIOR=手撕题）
+
+t_question ────────── t_question_kb_point（question_id ↔ kb_node_id）
+
+t_user_resume ──┬── t_resume_project（解析出的项目条目）
+                  └── （可选 FK）──── t_interview_session.resume_snapshot_id
+
+t_position ────────── t_question
+
 t_user ──────────────┬── t_interview_session ──── t_interview_question
                      │          │
                      │          ├── t_chat_message
                      │          │
+                     │          ├── t_session_coding_submit（一道手撕题的代码提交快照）
+                     │          │
                      │          └── t_evaluation_report ─── t_dimension_score
                      │
                      └── t_user_recommendation ── t_learning_resource
-
-t_position ──────────┬── t_question
-                     └── t_knowledge_doc
-
-t_question ──────────── t_question_tag（多对多：t_question_tag_rel）
 ```
+
+> **`t_knowledge_doc`（旧扁平知识库文档表）已由 `t_kb_node` + `t_kb_article` 替代**，本节不再列出建表 DDL；存量数据可按 `topic`/`position_code` 迁移到树上的叶节点文档。
 
 ---
 
@@ -83,99 +98,249 @@ INSERT INTO t_position (code, name, description, tech_stack, sort_order) VALUES
 ('PYTHON_ALGO', 'Python算法工程师',
  '负责算法研究与实现，熟悉机器学习和数据结构',
  '["Python","数据结构与算法","机器学习","深度学习","NumPy","Pandas","LeetCode","系统设计"]',
- 3);
+ 3),
+('GAME_CLIENT', '游戏客户端开发工程师',
+ '负责游戏客户端功能开发，熟悉游戏引擎架构与渲染管线',
+ '["C++","C#","Unity","Unreal Engine","游戏引擎","图形渲染","内存管理","网络同步","帧同步","性能优化","ECS","Lua"]',
+ 4);
 ```
 
 ---
 
-## 3. 面试题目表（t_question）
+## 3. 知识类目树节点（t_kb_node）
+
+> **设计目标**：用「无限层级」的树表达：计算机通识 → 大模块（如编程语言）→ 子模块（如 C++）→ … → **知识点叶节点**；仅 **叶节点**（`node_type=TOPIC_POINT`）挂载正文（见 `t_kb_article`）。中间节点（`GROUP`）用于网页侧目录展示与 AI 按模块理解考纲。  
+> **约定**：建议插入一条「虚拟根」`id=1, parent_id=NULL, title='知识库根', slug='root', node_type='GROUP'`，所有一级栏目（如「计算机通识基础」）的 `parent_id=1`，便于树查询。
 
 ```sql
-CREATE TABLE t_question (
-    id               BIGINT       NOT NULL AUTO_INCREMENT COMMENT '题目ID',
-    position_code    VARCHAR(30)  NOT NULL COMMENT '所属岗位编码',
-    title            TEXT         NOT NULL COMMENT '题目标题（面试问题）',
-    answer_reference TEXT         COMMENT '参考答案（优秀回答示例）',
-    difficulty       TINYINT      NOT NULL DEFAULT 2 COMMENT '难度（1简单/2中等/3困难）',
-    question_type    VARCHAR(20)  NOT NULL COMMENT '题型：TECH_KNOWLEDGE/PROJECT_DEEP/SCENARIO/BEHAVIOR',
-    topic            VARCHAR(50)  DEFAULT '' COMMENT '知识点标签（如JVM、多线程）',
-    follow_up_hints  JSON         COMMENT '追问提示词列表（JSON数组，AI追问参考）',
-    source           VARCHAR(100) DEFAULT '' COMMENT '题目来源（企业/社区）',
-    sort_order       INT DEFAULT 0 COMMENT '排序权重',
+CREATE TABLE t_kb_node (
+    id               BIGINT       NOT NULL AUTO_INCREMENT COMMENT '节点ID',
+    parent_id        BIGINT                DEFAULT NULL COMMENT '父节点ID，NULL 仅允许用于虚拟根',
+    title            VARCHAR(200) NOT NULL COMMENT '栏目/知识点标题（与用户示例中的各级名称对应）',
+    slug             VARCHAR(120) NOT NULL COMMENT '同级 URL 友好标识（同 parent_id 下唯一）',
+    code_path        VARCHAR(600) DEFAULT '' COMMENT '物化路径，如 /cs-foundations/programming/cpp/memory（便于检索与面包屑）',
+    depth            INT          NOT NULL DEFAULT 0 COMMENT '根为0',
+    sort_order       INT          NOT NULL DEFAULT 0 COMMENT '同级排序（小在前）',
+    node_type        VARCHAR(30)  NOT NULL COMMENT 'GROUP=仅目录容器；TOPIC_POINT=知识点叶节点（可挂正文）',
+    position_codes   JSON                  DEFAULT NULL COMMENT '适用岗位编码数组；NULL或空数组=全系通用面试知识',
+    summary_excerpt  VARCHAR(600) DEFAULT '' COMMENT '树上展示的短摘要（可选）',
+    is_active        TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '是否在前台知识库栏目展示',
     created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     is_deleted       TINYINT(1)   NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_parent_id (parent_id),
+    KEY idx_node_type (node_type),
+    UNIQUE KEY uk_parent_slug (parent_id, slug),
+    CONSTRAINT fk_kb_node_parent FOREIGN KEY (parent_id) REFERENCES t_kb_node(id)
+) COMMENT='知识库类目树节点（人机共享同一棵树）';
+```
+
+**node_type 说明：**
+
+| 值 | 含义 |
+|----|------|
+| `GROUP` | 仅目录层级，不挂载 `t_kb_article`（可提供 `summary_excerpt` 导读） |
+| `TOPIC_POINT` | **知识点**：必须 **0或1篇** `t_kb_article`（整块资料）；向量检索粒度以正文切块为准 |
+
+---
+
+## 4. 知识正文块（t_kb_article）
+
+> **整块内容**：由运营/团队在库里维护一篇 Markdown（或按需拆多个块：`display_order`）。RAG **切分 Embedding** 时以 `body_markdown` 为准写入 Chroma，元数据中携带 `kb_node_id`、`article_id`。
+
+```sql
+CREATE TABLE t_kb_article (
+    id              BIGINT       NOT NULL AUTO_INCREMENT COMMENT '正文块ID',
+    kb_node_id      BIGINT       NOT NULL COMMENT '必须为 node_type=TOPIC_POINT 的节点',
+    title           VARCHAR(200) NOT NULL DEFAULT '' COMMENT '篇名（可与节点标题略有不同）',
+    body_markdown   LONGTEXT     NOT NULL COMMENT '整块教学内容（Markdown）',
+    display_order   INT          NOT NULL DEFAULT 0 COMMENT '同节点多块正文时的排序',
+    chroma_ids      JSON                  DEFAULT NULL COMMENT '向量化后 chunk 对应的 Chroma 记录',
+    is_vectorized   TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '是否完成向量化',
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted      TINYINT(1)   NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_kb_node_id (kb_node_id),
+    CONSTRAINT fk_kb_article_node FOREIGN KEY (kb_node_id) REFERENCES t_kb_node(id)
+) COMMENT='知识点下的整块讲义/范例（人机阅读 + RAG 源）';
+```
+
+---
+
+## 5. LeetCode / 手撕编程题池（t_coding_challenge）
+
+> **`BEHAVIOR`（手撕编程）**：从 Hot100 等你方维护的题目池中 **每场面试抽一道**；题干存在本表，`t_question` 通过 `coding_challenge_id` 引用。不做在线判题时可仅保存用户提交的代码快照，由 **LLM 评审**。
+
+```sql
+CREATE TABLE t_coding_challenge (
+    id              BIGINT       NOT NULL AUTO_INCREMENT COMMENT '题目池ID',
+    external_ref    VARCHAR(64)  DEFAULT '' COMMENT '如 LeetCode 题号/别名（Hot100-003）',
+    title           VARCHAR(300) NOT NULL COMMENT '题干标题',
+    problem_md      LONGTEXT     NOT NULL COMMENT '题干描述 Markdown（constraints、示例可复制）',
+    difficulty      TINYINT      NOT NULL DEFAULT 2 COMMENT '1简单 2中等 3困难',
+    canonical_tags  JSON                  DEFAULT NULL COMMENT '标签数组，如["数组","哈希"]',
+    answer_hint_md  LONGTEXT COMMENT '内部参考解法要点（不向考生展示）',
+    is_active       TINYINT(1)   NOT NULL DEFAULT 1 COMMENT '是否可抽取',
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted      TINYINT(1)   NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_external_ref (external_ref),
+    KEY idx_difficulty (difficulty)
+) COMMENT='手撕编程题池（对齐 LeetCode Hot100 等你方导入的数据）';
+```
+
+---
+
+## 6. 面试题目表（t_question）
+
+> **与知识树**：每题仍可保留 `topic` **冗余标签**便于旧接口；结构化关联通过 `primary_kb_module_id`（所属大模块锚点）+ `t_question_kb_point`（0~多个具体知识点）。
+
+```sql
+CREATE TABLE t_question (
+    id                    BIGINT       NOT NULL AUTO_INCREMENT COMMENT '题目ID',
+    position_code         VARCHAR(30)  NOT NULL COMMENT '所属岗位编码',
+    primary_kb_module_id  BIGINT       DEFAULT NULL COMMENT '题干归属的知识模块锚点（t_kb_node 上任意祖先或 GROUP，例：数据结构）',
+    coding_challenge_id   BIGINT       DEFAULT NULL COMMENT '题型为 BEHAVIOR 且为手撕时关联 t_coding_challenge',
+    binding_session_id    BIGINT       DEFAULT NULL COMMENT '非空：本条仅用于本场面试可见（会话专属题，常见于 AI 生成的项目深挖）',
+    title                 TEXT         NOT NULL COMMENT '题干',
+    answer_reference      TEXT         COMMENT '参考答案/要点（不向考生端列表泄露）',
+    difficulty            TINYINT      NOT NULL DEFAULT 2 COMMENT '难度（1简单/2中等/3困难）',
+    question_type         VARCHAR(25)  NOT NULL COMMENT 'TECH_KNOWLEDGE/PROJECT_DEEP/SCENARIO/BEHAVIOR',
+    topic                 VARCHAR(100) DEFAULT '' COMMENT '冗余展示标签（与模块/知识点可读性一致时可手填）',
+    follow_up_hints       JSON         COMMENT '追问提示词列表（JSON数组，AI追问参考）',
+    source                VARCHAR(100) DEFAULT '' COMMENT '来源：MANUAL/AI_TECH_SCENARIO/AI_PROJECT/LC_HOT100 …',
+    generation_meta       JSON         DEFAULT NULL COMMENT 'AI出题时记录的模块路径、prompt、简历项目ID等',
+    sort_order            INT DEFAULT 0 COMMENT '排序权重',
+    created_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted            TINYINT(1)   NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
     KEY idx_position_code (position_code),
     KEY idx_difficulty (difficulty),
     KEY idx_question_type (question_type),
-    KEY idx_topic (topic)
-) COMMENT='面试题目表';
+    KEY idx_topic (topic),
+    KEY idx_primary_module (primary_kb_module_id),
+    KEY idx_binding_session (binding_session_id),
+    CONSTRAINT fk_question_primary_module FOREIGN KEY (primary_kb_module_id) REFERENCES t_kb_node(id),
+    CONSTRAINT fk_question_coding FOREIGN KEY (coding_challenge_id) REFERENCES t_coding_challenge(id)
+) COMMENT='题库主表（与知识树及手撕题目池可选关联）';
 ```
 
-**question_type 枚举值说明：**
+**question_type 枚举值说明（在你们方案上的语义对齐）：**
 
 | 值 | 含义 |
 |----|------|
-| `TECH_KNOWLEDGE` | 技术知识题（考察原理、概念） |
-| `PROJECT_DEEP` | 项目经历深挖（结合简历追问） |
-| `SCENARIO` | 场景设计题（如何设计一个XXX系统） |
-| `BEHAVIOR` | 行为题（讲述一次XXX经历） |
+| `TECH_KNOWLEDGE` | 技术原理/基础题 |
+| `PROJECT_DEEP` | 项目深挖题（题干常由简历解析 → AI，按知识点生成；多存为 `binding_session_id`） |
+| `SCENARIO` | 场景设计与开放题 |
+| `BEHAVIOR` | **手撕编程题**（本节设计：从 Hot100 池中抽一道 + 内置 IDE 提交代码 + AI 评语与追问）；**区别于**传统 STAR 行为面 |
 
 ---
 
-## 4. 知识库文档表（t_knowledge_doc）
+## 7. 题目—知识点关联（t_question_kb_point）
+
+> **多对多**：同一题可不关联知识点，也可挂 **多条** TOPIC_POINT 节点。
 
 ```sql
-CREATE TABLE t_knowledge_doc (
-    id            BIGINT       NOT NULL AUTO_INCREMENT COMMENT '文档ID',
-    position_code VARCHAR(30)  NOT NULL COMMENT '所属岗位编码',
-    title         VARCHAR(200) NOT NULL COMMENT '文档标题',
-    content       LONGTEXT     NOT NULL COMMENT '文档内容（Markdown格式）',
-    doc_type      VARCHAR(20)  NOT NULL COMMENT '文档类型：TECH_POINT/INTERVIEW_TIPS/ANSWER_EXAMPLE',
-    topic         VARCHAR(50)  DEFAULT '' COMMENT '知识点分类',
-    chroma_ids    JSON         COMMENT '向量化后在Chroma中的chunk ID列表',
-    is_vectorized TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '是否已向量化入库',
-    created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    is_deleted    TINYINT(1)   NOT NULL DEFAULT 0,
+CREATE TABLE t_question_kb_point (
+    id               BIGINT NOT NULL AUTO_INCREMENT,
+    question_id      BIGINT NOT NULL,
+    kb_node_id       BIGINT NOT NULL COMMENT '须为 TOPIC_POINT 叶节点',
+    relevance_weight DECIMAL(5,4) DEFAULT 1.0000 COMMENT '可扩展：主绑定=1，弱相关=0.5',
+    created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted       TINYINT(1) NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
-    KEY idx_position_code (position_code),
-    KEY idx_doc_type (doc_type),
-    KEY idx_topic (topic)
-) COMMENT='知识库文档表（RAG数据源）';
+    UNIQUE KEY uk_q_kb (question_id, kb_node_id),
+    KEY idx_question_id (question_id),
+    KEY idx_kb_node_id (kb_node_id),
+    CONSTRAINT fk_qkp_question FOREIGN KEY (question_id) REFERENCES t_question(id),
+    CONSTRAINT fk_qkp_kb FOREIGN KEY (kb_node_id) REFERENCES t_kb_node(id)
+) COMMENT='题库题目关联到的具体知识点叶节点（0或多个）';
 ```
 
 ---
 
-## 5. 面试会话表（t_interview_session）
+## 8. 简历快照（t_user_resume）
+
+> 用户在**开始项目类面试前**上传 PDF；解析后的文本与原文 URL 存本表，供 AI 生成 `PROJECT_DEEP` 题。
+
+```sql
+CREATE TABLE t_user_resume (
+    id              BIGINT       NOT NULL AUTO_INCREMENT,
+    user_id         BIGINT       NOT NULL,
+    file_url        VARCHAR(500) NOT NULL COMMENT '对象存储或本地路径',
+    file_name       VARCHAR(255) DEFAULT '' COMMENT '原始文件名',
+    parse_status    VARCHAR(20)  NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/SUCCESS/FAILED',
+    resume_text_md  LONGTEXT COMMENT 'PDF 抽取后的全文（Markdown/纯文本）',
+    remark          VARCHAR(500) DEFAULT '' COMMENT '解析失败原因等',
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted      TINYINT(1)   NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_user_id (user_id),
+    CONSTRAINT fk_resume_user FOREIGN KEY (user_id) REFERENCES t_user(id)
+) COMMENT='用户简历上传与解析快照';
+```
+
+---
+
+## 9. 简历结构化项目条目（t_resume_project）
+
+```sql
+CREATE TABLE t_resume_project (
+    id                   BIGINT NOT NULL AUTO_INCREMENT,
+    resume_id            BIGINT NOT NULL,
+    project_name         VARCHAR(200) NOT NULL,
+    summary_md           TEXT COMMENT '项目简介（可由 LLM 从简历截取）',
+    tech_stack_tokens    JSON   COMMENT '用到的技术关键字',
+    kb_point_ids_hint    JSON   COMMENT 'LLM估计关联的知识点 TOPIC_POINT id（可空）',
+    sort_order           INT NOT NULL DEFAULT 0,
+    created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted           TINYINT(1) NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_resume_id (resume_id),
+    CONSTRAINT fk_rp_resume FOREIGN KEY (resume_id) REFERENCES t_user_resume(id)
+) COMMENT='从简历中提取的项目块，便于按项目出题';
+```
+
+---
+
+## 10. 面试会话表（t_interview_session）
 
 ```sql
 CREATE TABLE t_interview_session (
-    id               BIGINT       NOT NULL AUTO_INCREMENT COMMENT '会话ID',
-    user_id          BIGINT       NOT NULL COMMENT '用户ID',
-    position_code    VARCHAR(30)  NOT NULL COMMENT '面试岗位编码',
-    session_status   VARCHAR(20)  NOT NULL DEFAULT 'IN_PROGRESS' COMMENT '状态：IN_PROGRESS/COMPLETED/ABANDONED',
-    input_mode       VARCHAR(10)  NOT NULL DEFAULT 'TEXT' COMMENT '输入模式：TEXT/VOICE',
-    total_questions  INT          DEFAULT 0 COMMENT '本次面试题目总数',
-    answered_count   INT          DEFAULT 0 COMMENT '已回答题目数',
-    duration_seconds INT          DEFAULT 0 COMMENT '面试总时长（秒）',
-    start_time       DATETIME     COMMENT '面试开始时间',
-    end_time         DATETIME     COMMENT '面试结束时间',
-    created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    is_deleted       TINYINT(1)   NOT NULL DEFAULT 0,
+    id                 BIGINT       NOT NULL AUTO_INCREMENT COMMENT '会话ID',
+    user_id            BIGINT       NOT NULL COMMENT '用户ID',
+    resume_snapshot_id BIGINT       DEFAULT NULL COMMENT '本场面试绑定的简历快照（项目深挖题依赖；可空）',
+    position_code      VARCHAR(30)  NOT NULL COMMENT '面试岗位编码',
+    session_status     VARCHAR(20)  NOT NULL DEFAULT 'IN_PROGRESS' COMMENT '状态：IN_PROGRESS/COMPLETED/ABANDONED',
+    input_mode         VARCHAR(10)  NOT NULL DEFAULT 'TEXT' COMMENT '输入模式：TEXT/VOICE',
+    total_questions    INT          DEFAULT 0 COMMENT '本次面试题目总数',
+    answered_count     INT          DEFAULT 0 COMMENT '已回答题目数',
+    duration_seconds   INT          DEFAULT 0 COMMENT '面试总时长（秒）',
+    start_time         DATETIME     COMMENT '面试开始时间',
+    end_time           DATETIME     COMMENT '面试结束时间',
+    created_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted         TINYINT(1)   NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
     KEY idx_user_id (user_id),
+    KEY idx_resume_snapshot (resume_snapshot_id),
     KEY idx_position_code (position_code),
     KEY idx_session_status (session_status),
-    KEY idx_user_status (user_id, session_status)
+    KEY idx_user_status (user_id, session_status),
+    CONSTRAINT fk_session_resume FOREIGN KEY (resume_snapshot_id) REFERENCES t_user_resume(id)
 ) COMMENT='面试会话表';
 ```
 
 ---
 
-## 6. 面试会话题目表（t_interview_question）
+## 11. 面试会话题目表（t_interview_question）
 
 ```sql
 CREATE TABLE t_interview_question (
@@ -195,7 +360,7 @@ CREATE TABLE t_interview_question (
 
 ---
 
-## 7. 对话消息表（t_chat_message）
+## 12. 对话消息表（t_chat_message）
 
 ```sql
 CREATE TABLE t_chat_message (
@@ -219,7 +384,31 @@ CREATE TABLE t_chat_message (
 
 ---
 
-## 8. 评估报告表（t_evaluation_report）
+## 13. 手撕题代码提交（t_session_coding_submit）
+
+> **BEHAVIOR / 手撕**：用户在内置 IDE 中提交代码（**不做 OJ 自测**）。每次提交落库，评估阶段由 LLM 判断思路、边界与明显语法/逻辑问题，并驱动追问（如「为何选该算法」）。
+
+```sql
+CREATE TABLE t_session_coding_submit (
+    id              BIGINT       NOT NULL AUTO_INCREMENT,
+    session_id      BIGINT       NOT NULL,
+    question_id     BIGINT       NOT NULL COMMENT '本场手撕题对应的 t_question.id',
+    code_body       MEDIUMTEXT   NOT NULL COMMENT '用户提交的代码全文',
+    language        VARCHAR(32)  NOT NULL DEFAULT 'cpp' COMMENT 'IDE 所选语言',
+    submit_order    INT          NOT NULL DEFAULT 1 COMMENT '同一题多次提交递增',
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_deleted      TINYINT(1)   NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_session_question (session_id, question_id),
+    CONSTRAINT fk_scs_session FOREIGN KEY (session_id) REFERENCES t_interview_session(id),
+    CONSTRAINT fk_scs_question FOREIGN KEY (question_id) REFERENCES t_question(id)
+) COMMENT='手撕编程题提交快照（无判题机时以 LLM 评审为主）';
+```
+
+---
+
+## 14. 评估报告表（t_evaluation_report）
 
 ```sql
 CREATE TABLE t_evaluation_report (
@@ -252,7 +441,7 @@ CREATE TABLE t_evaluation_report (
 
 ---
 
-## 9. 维度得分明细表（t_dimension_score）
+## 15. 维度得分明细表（t_dimension_score）
 
 ```sql
 CREATE TABLE t_dimension_score (
@@ -276,7 +465,7 @@ CREATE TABLE t_dimension_score (
 
 ---
 
-## 10. 学习资源表（t_learning_resource）
+## 16. 学习资源表（t_learning_resource）
 
 ```sql
 CREATE TABLE t_learning_resource (
@@ -301,7 +490,7 @@ CREATE TABLE t_learning_resource (
 
 ---
 
-## 11. 用户推荐记录表（t_user_recommendation）
+## 17. 用户推荐记录表（t_user_recommendation）
 
 ```sql
 CREATE TABLE t_user_recommendation (
@@ -324,7 +513,7 @@ CREATE TABLE t_user_recommendation (
 
 ---
 
-## 12. 用户成长记录表（t_growth_record）
+## 18. 用户成长记录表（t_growth_record）
 
 ```sql
 CREATE TABLE t_growth_record (
@@ -352,7 +541,7 @@ CREATE TABLE t_growth_record (
 
 ---
 
-## 13. 系统配置表（t_system_config）
+## 19. 系统配置表（t_system_config）
 
 > 管理员通过后台界面修改此表来控制 AI 服务参数和 Prompt 模板，无需重启应用。
 
@@ -418,21 +607,28 @@ INSERT INTO t_system_config (config_key, config_value, config_type, description,
 
 ---
 
-## 14. 完整建库脚本入口
+## 20. 完整建库脚本入口
 
-建议将以上所有建表 SQL 整理到 `sql/init.sql`，在 Docker Compose 启动时自动初始化。执行顺序：
+建议将以上所有建表 SQL 整理到 `sql/init.sql`，在 Docker Compose 启动时自动初始化。执行顺序（**按外键依赖**）：
 
-1. 建库
-2. `t_user`（含初始 ADMIN 账号：admin / admin123456）
+1. 建库 `ai_interview`
+2. `t_user`（含初始 ADMIN：admin / admin123456）
 3. `t_position`（含初始化数据）
-4. `t_question`
-5. `t_knowledge_doc`
-6. `t_interview_session`
-7. `t_interview_question`
-8. `t_chat_message`
-9. `t_evaluation_report`
-10. `t_dimension_score`
-11. `t_learning_resource`
-12. `t_user_recommendation`
-13. `t_growth_record`
-14. `t_system_config`（含初始化配置数据）
+4. `t_kb_node`（含虚拟根 + 一级栏目种子，可选）
+5. `t_kb_article`
+6. `t_coding_challenge`（Hot100 等你方导入）
+7. `t_question`（依赖 `t_kb_node`、`t_coding_challenge`）
+8. `t_question_kb_point`
+9. `t_user_resume` → `t_resume_project`
+10. `t_interview_session`（依赖 `t_user`、`t_user_resume` 可选）
+11. `t_interview_question`
+12. `t_chat_message`
+13. `t_session_coding_submit`
+14. `t_evaluation_report`
+15. `t_dimension_score`
+16. `t_learning_resource`
+17. `t_user_recommendation`
+18. `t_growth_record`
+19. `t_system_config`（含初始化配置数据）
+
+> **说明**：若存在历史 `t_knowledge_doc` 表，先迁移到 `t_kb_node` + `t_kb_article` 后再删表，避免与 `t_question` 外键冲突。

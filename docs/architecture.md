@@ -6,7 +6,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                          客户端层                                │
 │   浏览器（Vue 3 SPA）                                            │
-│   - 面试交互界面  - 报告展示  - 成长曲线  - 题库浏览             │
+│   - 面试交互界面  - 报告展示  - 成长曲线  - 题库浏览  - 【知识库目录与正文阅览】 │
 └──────────────────────┬──────────────────────────────────────────┘
                        │ HTTPS / WebSocket
 ┌──────────────────────▼──────────────────────────────────────────┐
@@ -23,8 +23,13 @@
 │  └────────────┘ └────────────┘ └────────────┘ └──────────────┘  │
 │                                                                   │
 │  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────────┐  │
-│  │  题库模块  │ │  报告模块  │ │  资源模块  │ │  AI 服务层   │  │
-│  │  QuestionM │ │ ReportModule│ │ResourceM   │ │  AiService   │  │
+│  │  题库模块  │ │ 【知识仓库】 │ │ 【简历模块】 │ │ 【AI出题管线】 │
+│  │ QuestionM  │ │  KbModule  │ │ ResumeMod  │ │ AiGenModule  │  │
+│  └────────────┘ └────┬───────┘ └─────┬──────┘ └───────┬────────┘  │
+│                       │向量切片入库     │PDF/LLM结构化   │写 t_question │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌──────────────┐  │
+│  │  报告模块  │ │ 【手撕快照】 │ │  资源模块  │ │  AI 服务层   │  │
+│  │ ReportMod  │ │ CodingJob  │ │ ResourceM │ │ AiService/Llm│  │
 │  └────────────┘ └────────────┘ └────────────┘ └──────────────┘  │
 └───────────┬───────────┬──────────────┬──────────────┬───────────┘
             │           │              │              │
@@ -55,23 +60,44 @@
 
 ### 2.3 题库模块（QuestionModule）
 
-- 面试题目管理（按岗位、难度、题型分类）
-- 知识库文档管理
-- 题目随机抽取策略（按岗位 + 难度分布）
-- 知识库向量化入库（调用 Embedding API → 存入 Chroma）
+- 面试题目 `t_question`：保留四种题型语义（见库表注释）；**TECH / SCENARIO** 可由题库池或 AI 按需生成并入表；**PROJECT_DEEP** 多与本场 `resume_snapshot` 绑定会话专属记录；**BEHAVIOR** = 手撕题，关联 `t_coding_challenge`（Hot100 等）。
+- 题目与 **`t_kb_node`**：通过 `primary_kb_module_id` 声明「这道题挂在哪个知识大模块」（如数据结构）；通过 **`t_question_kb_point`** M:N 关联 **0～多个 TOPIC_POINT 知识点**。
+- 题目抽取策略：`binding_session_id IS NULL` 的全局池 + 会话内插入的会话专属题；按岗位 / 题型 / 难度配比随机或策略抽取。
+- 对外题目列表不落 `answer_reference`。
+
+### 2.3.a 知识库模块（KbModule）
+
+- **`t_kb_node` 类目树**：支持无限层级分组；仅 `TOPIC_POINT` 叶子挂载 **`t_kb_article` 整块 Markdown**。
+- **前台**：侧边树 + 正文渲染（与用户举例的层级展示一致）。
+- **RAG**：正文切块 → Embedding → Chroma，`metadata` 含 `kb_node_id`、`article_id`、`code_path`、`position_codes`。
+- **管理**：后台与普通接口维护节点与正文，“向量化”按钮刷新向量索引。
+
+### 2.3.b 简历模块（ResumeModule）
+
+- 用户上传 PDF → 落 `t_user_resume` → 异步解析全文 → LLM/规则抽取 `t_resume_project`。
+- `POST /interviews/start` 可携带 `resume_id`；会话写入 `resume_snapshot_id` 供项目题生成器读取。
+
+### 2.3.c AI 题目生成（AiQuestionGenerator）
+
+- **输入**：岗位、`kb_module_id` 或子树范围、题型（仅 `TECH_KNOWLEDGE` / `SCENARIO`）、可选难度与数量。
+- **输出**：LLM 生成题干 → 校验 JSON → **INSERT `t_question`** + 可选写 `t_question_kb_point`；`source=AI_TECH_SCENARIO`。
+- **项目题**：读取 `t_resume_project` + 选定知识点 → 生成 `PROJECT_DEEP` 行并设 `binding_session_id`。
+- **手撕题**：不调 LLM 造新题，由 **`t_coding_challenge` 池** 抽题后组装 `t_question` 或直接引用池 ID。
 
 ### 2.4 面试模块（InterviewModule）
 
-- 创建面试会话（选岗位 → 分配题目序列）
+- 创建面试会话（选岗位 → 【可选绑定简历快照】→ 分配题目序列，含会话专属项目题插入）
 - WebSocket / SSE 长连接维护实时对话流
 - 对话轮次管理（题目推进 + 追问逻辑）
+- **手撕题轮次**：内置 IDE 提交代码 → `t_session_coding_submit`（无 OJ 时仅快照 + LLM 评审与追问）
 - 语音转文字（接收前端 Base64 音频 → 调用 ASR）
 - 面试状态机（未开始 → 进行中 → 已结束）
 
 ### 2.5 评估模块（EvalModule）
 
 - 面试结束后触发异步评估任务
-- RAG 检索：将用户回答向量化，从 Chroma 召回相关知识片段
+- RAG 检索：将用户回答向量化，从 Chroma 按 **知识树元数据** 召回 `t_kb_article` 切块
+- **手撕题**：合并最近代码提交快照 + 题干，走独立评分 Prompt（正确性/算法选择/明显逻辑或语法问题）
 - 调用 LLM 进行多维度评分（技术正确性、逻辑性、深度、表达）
 - 评估结果持久化到 `t_evaluation_report` + `t_dimension_score`
 
@@ -113,6 +139,7 @@ src/
 │   ├── interview/    # 面试选择 + 面试间 + 结束等待
 │   ├── report/       # 报告详情、历史报告列表
 │   ├── growth/       # 成长曲线可视化
+│   ├── knowledge/    # 知识库树 + 正文阅读（与 t_kb_node / t_kb_article 对应）
 │   └── resources/    # 推荐资源页
 ├── router/           # Vue Router 路由配置
 ├── stores/           # Pinia 状态管理
@@ -136,6 +163,8 @@ src/main/java/com/aiinterview/
 ├── controller/              # REST 控制器
 │   ├── AuthController.java
 │   ├── UserController.java
+│   ├── KbController.java              # 知识库树/正文只读
+│   ├── ResumeController.java          # 简历上传与项目条目
 │   ├── InterviewController.java
 │   ├── QuestionController.java
 │   ├── ReportController.java
@@ -144,7 +173,8 @@ src/main/java/com/aiinterview/
 │       ├── AdminStatsController.java
 │       ├── AdminPositionController.java
 │       ├── AdminQuestionController.java
-│       ├── AdminKnowledgeController.java
+│       ├── AdminKnowledgeController.java  # 【替换为 AdminKbController：节点+正文 CRUD】
+│       ├── AdminAiQuestionGenController.java
 │       ├── AdminAiConfigController.java
 │       └── AdminUserController.java
 ├── service/                 # 业务逻辑
@@ -180,14 +210,18 @@ src/main/resources/
 ```
 用户选择岗位
     ↓
-POST /api/v1/interviews/start
-    ↓ 创建 t_interview_session（status=IN_PROGRESS）
+【可选】上传/选用简历快照（PDF → t_user_resume）
+    ↓
+POST /api/v1/interviews/start （可带 resume_snapshot_id）
+    ↓ 创建 t_interview_session；若启用项目深挖：流水线生成 SESSION_BOUND 的 PROJECT_DEEP 题并入队
+    ↓ TECH/SCENARIO 从全局 pool 抽出；BEHAVIOR 从 t_coding_challenge 抽一题并生成占位 t_question（若未有预置）
     ↓ 按岗位抽取题目序列，存入 t_interview_question
     ↓ 返回 sessionId + 第一道题目
     ↓
 AI 面试官发出第一个问题（由 LLM 基于题目生成口语化提问）
     ↓
-用户回答（文字 or 语音）
+用户回答（文字 or 语音；若本题 BEHAVIOR：先 IDE 提交代码）
+    ↓ 【手撕分支】 POST /coding-submit → 写 t_session_coding_submit → 可走一轮 LLM 「代码审稿」SSE
     ↓ 若语音：前端录音 → Base64 → POST /api/v1/asr/convert → 返回文字
     ↓
 POST /api/v1/interviews/{id}/message（携带用户文字回答）
@@ -220,16 +254,16 @@ POST /api/v1/interviews/{id}/end
 
 ```
 知识库构建（离线）：
-文档 → 文本分块（512 token，重叠 64）
+t_kb_article.body_markdown → 文本分块（512 token，重叠 64）
     → Embedding API → 向量
-    → 存入 Chroma（带岗位标签元数据）
+    → 存入 Chroma（metadata：kb_node_id、article_id、code_path、position_codes）
 
 在线检索：
-用户回答文本
+用户回答文本（或对话上下文）
     → Embedding API → 查询向量
-    → Chroma 相似度检索（Top-5，按岗位过滤）
+    → Chroma 相似度检索（Top-K），可按岗位、bread-crumb/code_path 过滤
     → 召回知识片段
-    → 注入 LLM 评估 Prompt
+    → 注入 LLM（评估 Prompt 或出题 Prompt）
 ```
 
 ---

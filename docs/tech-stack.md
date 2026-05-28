@@ -219,11 +219,8 @@ llmService.embed(text);                           // 获取向量
 ### 4.2 Chroma 向量数据库
 
 - 以 HTTP 模式运行（Docker 启动）
-- 每个岗位对应一个独立 Collection：
-  - `ai_interview_java_backend`
-  - `ai_interview_web_frontend`
-  - `ai_interview_python_algo`
-- 元数据字段：`source`（文件名）、`chunk_index`、`position_code`、`topic`
+- **推荐**使用 **单一业务 Collection**（如 `ai_interview_kb`），靠 `metadata.position_codes`、`kb_node_id`、`code_path`、`article_id` 过滤；亦可继续按岗位拆分 Collection（与早期文档兼容）
+- 旧版 `ai_interview_java_backend` 等与扁平 `t_knowledge_doc` 对齐；**新层级知识库以 article 切块为主**
 
 ### 4.3 Web Speech API
 

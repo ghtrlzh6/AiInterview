@@ -64,9 +64,9 @@
 | Sprint 2 | Task 2.3 | `InterviewController.message` 改造为 SSE + 状态机防护 | 🔴 |
 | Sprint 3.5 | Task 3.5.3 | `AdminQuestionController`（题目 CRUD + 批量导入） | 🟡 |
 | Sprint 4 | Task 4.1 | Web 前端题库 SQL 数据（30 题） | 🔴 |
-| Sprint 4 | Task 4.2 | Python 算法题库 SQL（20 题） + 各岗位定制 Prompt | 🔴 |
+| Sprint 4 | Task 4.2 | Python 算法 + 游戏客户端题库 SQL + 各岗位定制 Prompt | 🔴 |
 
-**关键产出**：完整面试对话后端、SSE 流式推送、追问逻辑、三岗位题库  
+**关键产出**：完整面试对话后端、SSE 流式推送、追问逻辑、四岗位题库  
 **与他人接口约定**：`POST /interviews/start` Response（与 D 对齐）、SSE 事件格式（`token`/`done`/`next_question`/`interview_end`）
 
 ---
@@ -111,7 +111,7 @@
 | Sprint 3.5 | Task 3.5.7 | 岗位管理页 + 题目管理页（CRUD + 批量导入） | 🟡 |
 | Sprint 3.5 | Task 3.5.8 | AI 配置页（掩码 + 连通性测试 + Prompt 编辑器） | 🟡 |
 | Sprint 3.5 | Task 3.5.9 | 知识库管理页 + 用户管理页 | 🟡 |
-| Sprint 4 | Task 4.3 | 三岗位前端开放 + 岗位列表动态渲染 | 🔴 |
+| Sprint 4 | Task 4.3 | 四岗位前端开放 + 岗位列表动态渲染 | 🔴 |
 | Sprint 4 | Task 4.4 | Web Speech API 语音输入组件（降级兼容） | 🟡 |
 | Sprint 5 | Task 5.5 | 成长曲线页（ECharts 折线图 + 趋势标签） | 🟡 |
 | Sprint 5 | Task 5.7 | 报告页推荐资源区块 + 反馈按钮 | 🟡 |
@@ -130,7 +130,7 @@
 | **Sprint 2**（第4周） | — | Task 2.1~2.3 SSE/追问 | — | Task 2.4~2.5 前端SSE改造 |
 | **Sprint 3**（第5周） | — | — | Task 3.1~3.4 评估报告后端 | Task 3.5~3.6 报告前端 |
 | **Sprint 3.5**（第6周） | Task 3.5.1/2/4/5 管理后台后端 | Task 3.5.3 题目管理 | — | Task 3.5.6~3.5.9 管理后台前端 |
-| **Sprint 4**（第6-7周） | Task 4.5 ASR | Task 4.1~4.2 多岗位题库+Prompt | — | Task 4.3~4.4 三岗位前端+语音 |
+| **Sprint 4**（第6-7周） | Task 4.5 ASR | Task 4.1~4.2 多岗位题库+Prompt | — | Task 4.3~4.4 四岗位前端+语音 |
 | **Sprint 5**（第7-8周） | — | — | Task 5.1~5.8 RAG+成长+推荐 | Task 5.5/5.7 成长/推荐前端 |
 
 ---
@@ -144,7 +144,7 @@
 | Sprint 2 | AI 对话增强 | 第 4 周 | 5 | 真实 LLM 驱动追问，流式输出 |
 | Sprint 3 | 评估报告 | 第 5 周 | 6 | 多维度自动评分，报告可查看 |
 | Sprint 3.5 | 管理后台 | 第 6 周 | 9 | 题库/岗位/知识库/AI配置/Prompt 可视化管理 |
-| Sprint 4 | 多岗位 + 语音 | 第 6-7 周 | 5 | 三岗位差异化，语音输入可用 |
+| Sprint 4 | 多岗位 + 语音 | 第 6-7 周 | 5 | 四岗位差异化，语音输入可用 |
 | Sprint 5 | RAG + 成长 + 推荐 | 第 7-8 周 | 8 | 知识库检索、成长曲线、资源推荐 |
 
 ---
@@ -189,11 +189,11 @@
 - `sql/init.sql`（在 DDL 之后追加 INSERT 语句）
 
 **实现内容**
-- 3 条 `t_position` 记录（JAVA_BACKEND / WEB_FRONTEND / PYTHON_ALGO）
+- 4 条 `t_position` 记录（JAVA_BACKEND / WEB_FRONTEND / PYTHON_ALGO / GAME_CLIENT）
 - 10 条 `t_system_config` 默认记录（LLM 参数 + 3 个 Prompt 占位模板，参见 database-design.md）
 - 1 条 admin 用户（`admin` / BCrypt(`admin123456`) / role=`ADMIN`）
 
-**完成标志**：`SELECT * FROM t_position;` 3 行；`SELECT config_key FROM t_system_config;` 10 行；admin 可登录。
+**完成标志**：`SELECT * FROM t_position;` 4 行；`SELECT config_key FROM t_system_config;` 10 行；admin 可登录。
 
 ---
 
@@ -381,7 +381,7 @@
 - `frontend/src/composables/useInterview.ts`（状态管理：消息列表、题目进度、`appendMessage()`）
 
 **实现内容**
-- 岗位选择页：3 张岗位卡片（Java后端可进入，其余显示"即将开放"）；点击调用 `start` 接口，跳转面试间
+- 岗位选择页：4 张岗位卡片（Java后端可进入，其余显示"即将开放"）；点击调用 `start` 接口，跳转面试间
 - 面试间：对话气泡列表（AI/用户区分样式）；文字输入框 + 发送（Enter）；题目进度（第 X / 共 10 题）；结束面试按钮（二次确认）
 
 **完成标志**：选 Java 后端 → 看到 AI 开场消息 → 输入回答 → 收到 AI 下一题 → 点击结束。
@@ -719,7 +719,7 @@
 ## Sprint 4：多岗位 + 语音输入（第 6-7 周）
 
 ### 目标
-在 Sprint 1-3 的 Java 后端功能基础上，水平扩展到 Web 前端和 Python 算法两个岗位，并增加语音输入支持。**架构无需改动，只需补充数据和配置**。
+在 Sprint 1-3 的 Java 后端功能基础上，水平扩展到 Web 前端、Python 算法和游戏客户端开发三个岗位，并增加语音输入支持。**架构无需改动，只需补充数据和配置**。
 
 > 新岗位接入 checklist：① 录入 `t_question` 数据 ② 定制 Prompt 模板 ③ 前端岗位卡片开放。无需改后端代码逻辑。
 
@@ -736,28 +736,30 @@
 
 ---
 
-#### Task 4.2 — Python 算法题库 SQL + 各岗位定制 Prompt 🔴
+#### Task 4.2 — Python 算法 + 游戏客户端题库 SQL + 各岗位定制 Prompt 🔴
 
 **涉及文件**
 - `sql/data_python_algo.sql`（20 条 INSERT INTO t_question）
+- `sql/data_game_client.sql`（30 条 INSERT INTO t_question）
 - `src/main/resources/prompts/interview_system_web.txt`（前端岗位面试官 Prompt）
 - `src/main/resources/prompts/interview_system_python.txt`（算法岗位面试官 Prompt）
+- `src/main/resources/prompts/interview_system_game.txt`（游戏客户端岗位面试官 Prompt）
 
-**实现内容**：Python 算法题覆盖数据结构/算法/机器学习基础；前端 Prompt 侧重代码题/工程化考察；算法 Prompt 侧重思路表达/复杂度分析；`InterviewService.startInterview()` 按 positionCode 选择对应 Prompt 文件。
+**实现内容**：Python 算法题覆盖数据结构/算法/机器学习基础；游戏客户端题覆盖 Unity/Unreal、渲染管线、内存管理、网络同步、帧同步、ECS 架构等；各岗位 Prompt 侧重不同考察方向；`InterviewService.startInterview()` 按 positionCode 选择对应 Prompt 文件。
 
-**完成标志**：三个岗位各发起一次面试，Prompt 和题目内容均差异明显。
+**完成标志**：`SELECT COUNT(*) FROM t_question WHERE position_code='GAME_CLIENT';` = 30；四个岗位各发起一次面试，Prompt 和题目内容均差异明显。
 
 ---
 
-#### Task 4.3 — 前端岗位选择页开放三个岗位 + 联调 🔴
+#### Task 4.3 — 前端岗位选择页开放四个岗位 + 联调 🔴
 
 **涉及文件**
 - `frontend/src/views/position/PositionSelectView.vue`（移除"即将开放"限制）
 - `frontend/src/api/position.ts`（从接口动态获取岗位列表）
 
-**实现内容**：岗位卡片从后端 `GET /api/v1/positions` 动态渲染（is_active=true 的才显示）；三个岗位均可发起面试；各自完成完整面试流程并生成报告。
+**实现内容**：岗位卡片从后端 `GET /api/v1/positions` 动态渲染（is_active=true 的才显示）；四个岗位均可发起面试；各自完成完整面试流程并生成报告。
 
-**完成标志**：Web 前端和 Python 算法岗位各完成 1 次完整面试并生成报告；题目内容明显不同。
+**完成标志**：Web 前端、Python 算法、游戏客户端岗位各完成 1 次完整面试并生成报告；题目内容明显不同。
 
 ---
 
@@ -784,8 +786,8 @@
 **完成标志**：上传一段音频文件，接口返回正确识别的文字（备用路径，Web Speech API 可用时前端不调此接口）。
 
 ### Sprint 4 验收标准
-- [ ] 三个岗位均可独立发起面试，题目内容差异明显
-- [ ] Web 前端和 Python 算法岗位各完成 1 次完整面试并生成报告
+- [ ] 四个岗位均可独立发起面试，题目内容差异明显
+- [ ] Web 前端、Python 算法、游戏客户端岗位各完成 1 次完整面试并生成报告
 - [ ] 语音输入可识别中文并填入对话框（Chrome/Edge 浏览器下）
 
 ---
@@ -804,7 +806,7 @@
 
 **实现内容**：内容涵盖核心技术考点精讲 + 优秀回答范例；`doc_type` 区分 KNOWLEDGE（知识点）/ ANSWER_EXAMPLE（范例）；`topic` 标签与题目 topic 对应，便于后续 RAG 检索关联。
 
-**完成标志**：三个岗位各有 10+ 条知识库文档，is_vectorized=false。
+**完成标志**：四个岗位各有 10+ 条知识库文档，is_vectorized=false。
 
 ---
 
@@ -892,7 +894,7 @@
 **实现内容**
 - 预置 `demo_student` 账号（Java 后端，已有 3 次面试，综合得分 62/75/83，成长曲线有上升趋势）
 - 确保演示第一题为经典 JVM 题（调整题目 order 或 SQL 种子）
-- 演示脚本涵盖：注册/登录 → Java后端面试（展示追问+打字机）→ 报告（雷达图+点评）→ 成长曲线 → 推荐资源 → 前端岗位面试差异
+- 演示脚本涵盖：注册/登录 → Java后端面试（展示追问+打字机）→ 报告（雷达图+点评）→ 成长曲线 → 推荐资源 → 游戏客户端岗位面试差异
 - 全流程实际演练至少 2 遍，确保无卡顿
 
 **完成标志**：5 分钟演示脚本演练通过；demo_student 成长曲线有 3 个数据点；演示视频录制完成。
@@ -910,7 +912,7 @@
 | 优先级 | 功能 | 对应 Sprint |
 |--------|------|-------------|
 | P0 必须 | 认证 + 单岗位文字面试 + 评估报告 | Sprint 0-3 |
-| P0 必须 | 三岗位差异化（至少各 20 题）| Sprint 4 |
+| P0 必须 | 四岗位差异化（至少各 20 题）| Sprint 4 |
 | P1 重要 | SSE 流式输出 + AI 追问 | Sprint 2 |
 | P1 重要 | 管理后台（题库/岗位/AI配置/Prompt）| Sprint 3.5 |
 | P1 重要 | 语音输入（Web Speech API）| Sprint 4 |
@@ -931,5 +933,5 @@
 | M3 - AI 流式对话 | Sprint 2 末 | 追问 + 打字机效果可演示 |
 | M4 - 报告核心交付 | Sprint 3 末 | 多维度评估报告完整可用 |
 | M5 - 管理后台可用 | Sprint 3.5 末 | 题库/AI配置/Prompt 可通过界面管理 |
-| M6 - 三岗位完整 | Sprint 4 末 | 三岗位均可面试，语音可用 |
+| M6 - 四岗位完整 | Sprint 4 末 | 四岗位均可面试，语音可用 |
 | M7 - 演示就绪 | Sprint 5 末 | 全功能可用，演示视频录制完成 |

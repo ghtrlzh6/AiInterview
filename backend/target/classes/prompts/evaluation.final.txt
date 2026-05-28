@@ -1,0 +1,5 @@
+以下是候选人本次面试的各题评分汇总：
+{scoreSummary}
+
+请生成一份综合评估报告，以JSON格式输出：
+{"overall_score":综合分,"expression_score":表达分,"confidence_score":自信度分,"summary":"总结（Markdown格式）","highlights":["亮点1","亮点2"],"weaknesses":["不足1","不足2"],"suggestions":["建议1","建议2"]}
