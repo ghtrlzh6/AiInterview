@@ -21,6 +21,7 @@
 | `database-design.md` | 所有数据库表结构、字段说明、索引设计、ER 关系 | 按需读取 |
 | `api-design.md` | 全部 RESTful API 接口定义、请求/响应格式、鉴权规则 | 按需读取 |
 | `development-plan.md` | 开发阶段划分、每阶段任务、里程碑节点、优先级排序 | 按需读取 |
+| `team-task-allocation.md` | 三人全栈分工、各模块前后端任务清单、协作顺序 | 按需读取 |
 
 ---
 

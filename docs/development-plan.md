@@ -9,6 +9,9 @@
 
 ## 四人分工方案
 
+> **当前进度下的剩余任务清单**见 [`team-task-allocation.md`](./team-task-allocation.md)。  
+> 以下按 Sprint 划分的原始计划仍作参考。
+
 > **分工原则**：按模块垂直切分，减少相互等待；前后端各有主责但需联调配合；A/B/C 负责后端，D 负责全部前端。  
 > 每周 Sprint 启动时对齐接口契约（Request/Response DTO），避免前后端并行时的 blocking。
 

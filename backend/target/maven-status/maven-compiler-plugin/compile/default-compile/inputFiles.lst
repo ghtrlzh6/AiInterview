@@ -104,5 +104,6 @@ E:\_软件工程管理与经济学课设\AiInterview\backend\src\main\java\com\a
 E:\_软件工程管理与经济学课设\AiInterview\backend\src\main\java\com\aiinterview\service\ResourceService.java
 E:\_软件工程管理与经济学课设\AiInterview\backend\src\main\java\com\aiinterview\service\ResumeService.java
 E:\_软件工程管理与经济学课设\AiInterview\backend\src\main\java\com\aiinterview\service\UserService.java
+E:\_软件工程管理与经济学课设\AiInterview\backend\src\main\java\com\aiinterview\util\DbConnectionTest.java
 E:\_软件工程管理与经济学课设\AiInterview\backend\src\main\java\com\aiinterview\util\PromptTemplateUtil.java
 E:\_软件工程管理与经济学课设\AiInterview\backend\src\main\java\com\aiinterview\util\SecurityUtils.java

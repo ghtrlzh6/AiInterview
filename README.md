@@ -384,7 +384,8 @@ cd frontend && npm run build
 | `docs/api-design.md` | 完整 API 定义 |
 | `docs/database-design.md` | 数据库表结构 |
 | `docs/tech-stack.md` | 技术选型 |
-| `docs/development-plan.md` | 开发计划与分工 |
+| `docs/development-plan.md` | 开发计划与 Sprint 任务 |
+| `docs/team-task-allocation.md` | 三人全栈分工与剩余任务（各管各模块前后端） |
 
 ---
 
