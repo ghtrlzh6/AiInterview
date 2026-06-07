@@ -73,8 +73,8 @@
 | ✅ | `UserController` 档案查询与更新 | A |
 | ✅ | 前端登录/注册页、路由守卫、Token 持久化 | A |
 | ✅ | 首页仪表盘骨架 | A |
-| ⬜ | 个人档案编辑页（昵称、学校、专业、目标岗位） | A |
-| ⬜ | 首页「最近面试得分」「面试次数」对接真实 API | A + D（数据来自 D 模块 API） |
+| ✅ | 个人档案编辑页（昵称、学校、专业、目标岗位） | A |
+| ✅ | 首页「最近面试得分」「面试次数」对接真实 API | A + D（数据来自 D 模块 API） |
 
 ---
 
@@ -229,7 +229,7 @@
 **主要前端**：`router` / `layouts` / `request.ts` · `LoginPage` / `RegisterPage` / `HomePage` / 个人档案 · Admin：`DashboardPage` / `PositionsPage` / `UsersPage` / `AiConfigPage` / 学习资源管理页（待建）
 
 **近期优先任务**：
-1. ⬜ 个人档案编辑页 + 首页数据对接（调用 D 的成长/报告 API）  
+1. ✅ 个人档案编辑页 + 首页数据对接（调用 D 的成长/报告 API）  
 2. ⬜ 管理后台学习资源管理页 + AI 配置真实联调  
 3. ⬜ 远端 MySQL + Nginx 生产部署  
 

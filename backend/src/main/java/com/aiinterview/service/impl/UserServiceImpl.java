@@ -12,16 +12,23 @@ import com.aiinterview.mapper.InterviewSessionMapper;
 import com.aiinterview.mapper.PositionMapper;
 import com.aiinterview.mapper.UserMapper;
 import com.aiinterview.service.UserService;
+import com.aiinterview.util.FileUploadUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -31,6 +38,11 @@ public class UserServiceImpl implements UserService {
     private final PositionMapper positionMapper;
     private final InterviewSessionMapper sessionMapper;
     private final EvaluationReportMapper reportMapper;
+
+    @Value("${app.upload-dir:./uploads}")
+    private String uploadDir;
+
+    private static final Set<String> AVATAR_EXTENSIONS = Set.of(".jpg", ".jpeg", ".png", ".webp", ".gif");
 
     @Override
     public Map<String, Object> getProfile(Long userId) {
@@ -53,8 +65,44 @@ public class UserServiceImpl implements UserService {
         if (request.getTargetPositionCode() != null) user.setTargetPositionCode(request.getTargetPositionCode());
         if (request.getAvatarUrl() != null) user.setAvatarUrl(request.getAvatarUrl());
         if (request.getEmail() != null) user.setEmail(request.getEmail());
+        if (request.getEducationExperience() != null) user.setEducationExperience(request.getEducationExperience());
+        if (request.getPersonalSkills() != null) user.setPersonalSkills(request.getPersonalSkills());
+        if (request.getProjectExperience() != null) user.setProjectExperience(request.getProjectExperience());
+        if (request.getInternshipExperience() != null) user.setInternshipExperience(request.getInternshipExperience());
         userMapper.updateById(user);
         return toProfileMap(user);
+    }
+
+    @Override
+    public Map<String, Object> uploadAvatar(Long userId, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("请选择头像图片");
+        }
+        if (file.getSize() > 2 * 1024 * 1024) {
+            throw new BusinessException("头像大小不能超过 2MB");
+        }
+        String originalName = file.getOriginalFilename();
+        String ext = originalName != null && originalName.contains(".")
+                ? originalName.substring(originalName.lastIndexOf('.')).toLowerCase()
+                : "";
+        if (!AVATAR_EXTENSIONS.contains(ext)) {
+            throw new BusinessException("仅支持 JPG、PNG、WEBP、GIF 格式");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw BusinessException.notFound("用户不存在");
+        }
+        try {
+            Path dir = Paths.get(uploadDir, "avatars", String.valueOf(userId)).toAbsolutePath().normalize();
+            String filename = System.currentTimeMillis() + ext;
+            Path target = dir.resolve(filename);
+            FileUploadUtil.saveMultipart(file, target);
+            user.setAvatarUrl("/uploads/avatars/" + userId + "/" + filename);
+            userMapper.updateById(user);
+            return toProfileMap(user);
+        } catch (IOException e) {
+            throw new BusinessException("头像上传失败");
+        }
     }
 
     @Override
@@ -98,6 +146,10 @@ public class UserServiceImpl implements UserService {
         map.put("email", user.getEmail());
         map.put("school", user.getSchool());
         map.put("major", user.getMajor());
+        map.put("educationExperience", user.getEducationExperience());
+        map.put("personalSkills", user.getPersonalSkills());
+        map.put("projectExperience", user.getProjectExperience());
+        map.put("internshipExperience", user.getInternshipExperience());
         map.put("targetPositionCode", user.getTargetPositionCode());
         if (StringUtils.hasText(user.getTargetPositionCode())) {
             Position pos = positionMapper.selectOne(new LambdaQueryWrapper<Position>()
@@ -105,6 +157,7 @@ public class UserServiceImpl implements UserService {
             map.put("targetPositionName", pos != null ? pos.getName() : "");
         }
         map.put("totalInterviews", user.getTotalInterviews());
+        map.put("role", user.getRole());
         map.put("createdAt", user.getCreatedAt());
         return map;
     }

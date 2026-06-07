@@ -11,4 +11,8 @@ public class UpdateProfileRequest {
     private String targetPositionCode;
     private String avatarUrl;
     private String email;
+    private String educationExperience;
+    private String personalSkills;
+    private String projectExperience;
+    private String internshipExperience;
 }

@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
@@ -30,6 +31,12 @@ public class UserController {
     @PutMapping("/me")
     public Result<Map<String, Object>> updateMe(@RequestBody UpdateProfileRequest request) {
         return Result.success(userService.updateProfile(SecurityUtils.currentUserId(), request));
+    }
+
+    @Operation(summary = "上传头像")
+    @PostMapping("/me/avatar")
+    public Result<Map<String, Object>> uploadAvatar(@RequestParam("file") MultipartFile file) {
+        return Result.success(userService.uploadAvatar(SecurityUtils.currentUserId(), file));
     }
 
     @Operation(summary = "面试历史")

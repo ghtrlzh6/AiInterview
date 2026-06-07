@@ -5,6 +5,10 @@ export interface UserProfile extends UserInfo {
   email?: string
   school?: string
   major?: string
+  educationExperience?: string
+  personalSkills?: string
+  projectExperience?: string
+  internshipExperience?: string
   targetPositionName?: string
   totalInterviews?: number
   createdAt?: string
@@ -29,6 +33,12 @@ export function getMe() {
 
 export function updateMe(data: Partial<UserProfile>) {
   return request.put<unknown, UserProfile>('/users/me', data)
+}
+
+export function uploadAvatar(file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return request.post<unknown, UserProfile>('/users/me/avatar', form)
 }
 
 export function getMyInterviews(params?: {

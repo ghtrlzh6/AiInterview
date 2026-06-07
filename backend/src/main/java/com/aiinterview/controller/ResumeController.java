@@ -27,6 +27,12 @@ public class ResumeController {
     }
 
     @Operation(summary = "解析状态")
+    @GetMapping("/latest")
+    public Result<Map<String, Object>> latest() {
+        return Result.success(resumeService.getLatest(SecurityUtils.currentUserId()));
+    }
+
+    @Operation(summary = "解析状态")
     @GetMapping("/{resumeId}")
     public Result<Map<String, Object>> status(@PathVariable Long resumeId) {
         return Result.success(resumeService.getStatus(SecurityUtils.currentUserId(), resumeId));

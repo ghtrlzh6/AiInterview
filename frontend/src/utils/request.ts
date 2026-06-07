@@ -33,6 +33,9 @@ request.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type']
+  }
   return config
 })
 
@@ -49,9 +52,11 @@ request.interceptors.response.use(
     return response.data as never
   },
   (error) => {
+    const status = error.response?.status
     const msg = error.response?.data?.message || error.message || '网络错误'
-    if (error.response?.status === 401) {
+    if (status === 401 || (status === 403 && getAccessToken())) {
       clearTokens()
+      localStorage.removeItem('userInfo')
       if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login'
       }

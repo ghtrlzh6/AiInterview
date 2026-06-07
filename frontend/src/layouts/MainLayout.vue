@@ -32,6 +32,10 @@
           <el-icon><Collection /></el-icon>
           <span>学习资源</span>
         </el-menu-item>
+        <el-menu-item index="/profile">
+          <el-icon><User /></el-icon>
+          <span>个人档案</span>
+        </el-menu-item>
         <el-menu-item v-if="auth.isAdmin" index="/admin">
           <el-icon><Setting /></el-icon>
           <span>管理后台</span>
@@ -42,7 +46,14 @@
       <el-header class="bg-white border-b border-slate-200 flex items-center justify-between h-16 px-6">
         <span class="font-medium text-slate-700 md:hidden">AI 模拟面试</span>
         <div class="flex items-center gap-4 ml-auto">
-          <span class="text-sm text-slate-600">{{ auth.userInfo?.nickname || '用户' }}</span>
+          <router-link to="/profile" class="flex items-center gap-2 no-underline">
+            <el-avatar :size="32" :src="avatarUrl" class="bg-indigo-100 text-indigo-600">
+              {{ auth.userInfo?.nickname?.charAt(0) || 'U' }}
+            </el-avatar>
+            <span class="text-sm text-slate-600 hover:text-brand-600">
+              {{ auth.userInfo?.nickname || '用户' }}
+            </span>
+          </router-link>
           <el-button type="danger" link @click="handleLogout">退出</el-button>
         </div>
       </el-header>
@@ -57,10 +68,13 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { resolveUploadUrl } from '@/utils/upload'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+
+const avatarUrl = computed(() => resolveUploadUrl(auth.userInfo?.avatarUrl))
 
 const activeMenu = computed(() => {
   if (route.path.startsWith('/admin')) return '/admin'

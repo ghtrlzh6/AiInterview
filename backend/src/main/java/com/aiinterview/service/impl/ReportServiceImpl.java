@@ -52,6 +52,9 @@ public class ReportServiceImpl implements ReportService {
             m.put("reportId", r.getId());
             m.put("sessionId", r.getSessionId());
             m.put("positionCode", r.getPositionCode());
+            Position pos = positionMapper.selectOne(new LambdaQueryWrapper<Position>()
+                    .eq(Position::getCode, r.getPositionCode()));
+            m.put("positionName", pos != null ? pos.getName() : r.getPositionCode());
             m.put("overallScore", r.getOverallScore());
             m.put("reportStatus", r.getReportStatus());
             m.put("createdAt", r.getCreatedAt());

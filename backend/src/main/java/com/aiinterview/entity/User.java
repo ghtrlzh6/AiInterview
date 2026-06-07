@@ -17,6 +17,10 @@ public class User extends BaseEntity {
     private String email;
     private String school;
     private String major;
+    private String educationExperience;
+    private String personalSkills;
+    private String projectExperience;
+    private String internshipExperience;
     private String role;
     private String targetPositionCode;
     private Integer totalInterviews;

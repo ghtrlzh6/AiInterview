@@ -11,5 +11,7 @@ public interface ResumeService {
 
     Map<String, Object> getStatus(Long userId, Long resumeId);
 
+    Map<String, Object> getLatest(Long userId);
+
     List<Map<String, Object>> listProjects(Long userId, Long resumeId);
 }
