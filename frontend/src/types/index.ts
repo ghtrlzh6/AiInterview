@@ -44,8 +44,31 @@ export interface ChatMessage {
   role: 'USER' | 'ASSISTANT' | 'SYSTEM'
   content: string
   messageType?: string
+  questionId?: number
   questionOrder?: number
+  questionType?: QuestionType
+  questionTitle?: string
+  topic?: string
   createdAt?: string
+}
+
+export type QuestionType = 'TECH_KNOWLEDGE' | 'SCENARIO' | 'PROJECT_DEEP' | 'BEHAVIOR'
+
+export interface CodingChallenge {
+  id: number
+  title: string
+  problemMd: string
+  difficulty: number
+  tags?: string[]
+}
+
+export interface CurrentQuestion {
+  questionId: number
+  questionOrder: number
+  questionType: QuestionType
+  questionTitle: string
+  topic?: string
+  codingChallenge?: CodingChallenge
 }
 
 export interface InterviewStartResult {
@@ -54,6 +77,7 @@ export interface InterviewStartResult {
   positionName: string
   totalQuestions: number
   firstMessage: ChatMessage
+  currentQuestion?: CurrentQuestion
 }
 
 export interface SseEvent {
@@ -61,9 +85,28 @@ export interface SseEvent {
   content?: string
   messageId?: number
   messageType?: string
+  questionId?: number
   questionOrder?: number
+  questionType?: QuestionType
+  questionTitle?: string
+  topic?: string
+  codingChallenge?: CodingChallenge
   reportId?: number
   message?: string
+}
+
+export interface ResumeStatus {
+  resumeId: number
+  parseStatus: 'PENDING' | 'SUCCESS' | 'FAILED'
+  fileName?: string
+  remark?: string
+}
+
+export interface ResumeProject {
+  id: number
+  projectName: string
+  summaryMd?: string
+  techStackTokens?: string[]
 }
 
 export interface ReportScores {

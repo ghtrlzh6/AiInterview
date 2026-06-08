@@ -61,4 +61,12 @@ public class InterviewController {
             @Valid @RequestBody CodingSubmitRequest request) {
         return Result.success(interviewService.codingSubmit(SecurityUtils.currentUserId(), sessionId, request));
     }
+
+    @Operation(summary = "最近一次手撕代码提交")
+    @GetMapping("/{sessionId}/coding-submit/latest")
+    public Result<Map<String, Object>> latestCodingSubmit(
+            @PathVariable Long sessionId,
+            @RequestParam Long questionId) {
+        return Result.success(interviewService.latestCodingSubmit(SecurityUtils.currentUserId(), sessionId, questionId));
+    }
 }

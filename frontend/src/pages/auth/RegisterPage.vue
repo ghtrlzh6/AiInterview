@@ -43,11 +43,24 @@ const form = reactive({
 })
 
 const rules: FormRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  nickname: [{ required: true, message: '请输入昵称', trigger: 'blur' }],
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 4, max: 20, message: '用户名需为 4-20 位', trigger: 'blur' },
+    {
+      pattern: /^[a-zA-Z0-9_]+$/,
+      message: '用户名只能包含字母、数字、下划线',
+      trigger: 'blur',
+    },
+  ],
+  email: [{ type: 'email', message: '邮箱格式不正确', trigger: 'blur' }],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 8, message: '至少 8 位', trigger: 'blur' },
+    { min: 8, max: 20, message: '密码需为 8-20 位', trigger: 'blur' },
+    {
+      pattern: /^(?=.*[A-Za-z])(?=.*\d).+$/,
+      message: '密码需同时包含字母和数字',
+      trigger: 'blur',
+    },
   ],
 }
 

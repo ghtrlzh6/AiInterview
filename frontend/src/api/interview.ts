@@ -33,7 +33,33 @@ export function submitCoding(
   sessionId: number,
   data: { questionId: number; language: string; code: string },
 ) {
-  return request.post(`/interviews/${sessionId}/coding-submit`, data)
+  return request.post<
+    unknown,
+    {
+      submitId: number
+      submitOrder: number
+      questionId: number
+      language: string
+      review: string
+      followUpSuggestion: string
+      createdAt?: string
+    }
+  >(`/interviews/${sessionId}/coding-submit`, data)
+}
+
+export function getLatestCodingSubmit(sessionId: number, questionId: number) {
+  return request.get<
+    unknown,
+    {
+      submitted: boolean
+      submitId?: number
+      submitOrder?: number
+      questionId?: number
+      language?: string
+      code?: string
+      createdAt?: string
+    }
+  >(`/interviews/${sessionId}/coding-submit/latest`, { params: { questionId } })
 }
 
 export function convertAsr(formData: FormData) {

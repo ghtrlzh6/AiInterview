@@ -1,21 +1,11 @@
 import request from '@/utils/request'
+import type { ResumeProject, ResumeStatus } from '@/types'
 
 export type ResumeParseStatus = 'PENDING' | 'SUCCESS' | 'FAILED'
 
 export interface ResumeUploadResult {
   resumeId: number
   parseStatus: ResumeParseStatus
-}
-
-export interface ResumeStatus {
-  resumeId?: number
-  parseStatus?: ResumeParseStatus
-  fileName?: string
-  fileUrl?: string
-  remark?: string
-  createdAt?: string
-  resumeTextPreview?: string
-  parsedSections?: Record<string, string>
 }
 
 export interface ResumeProjectItem {
@@ -25,10 +15,12 @@ export interface ResumeProjectItem {
   techStackTokens?: string[]
 }
 
-export function uploadResume(file: File) {
-  const form = new FormData()
-  form.append('file', file)
-  return request.post<unknown, ResumeUploadResult>('/resumes/upload', form)
+export function uploadResume(fileOrForm: File | FormData) {
+  const form = fileOrForm instanceof FormData ? fileOrForm : new FormData()
+  if (fileOrForm instanceof File) {
+    form.append('file', fileOrForm)
+  }
+  return request.post<unknown, ResumeUploadResult & ResumeStatus>('/resumes/upload', form)
 }
 
 export function getLatestResume() {
@@ -41,6 +33,10 @@ export function getResumeStatus(resumeId: number) {
 
 export function getResumeProjects(resumeId: number) {
   return request.get<unknown, ResumeProjectItem[]>(`/resumes/${resumeId}/projects`)
+}
+
+export function listResumeProjects(resumeId: number) {
+  return request.get<unknown, ResumeProject[]>(`/resumes/${resumeId}/projects`)
 }
 
 export async function waitForResumeParsed(

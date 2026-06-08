@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as interviewApi from '@/api/interview'
 import { streamSse } from '@/utils/sse'
-import type { ChatMessage, InterviewStartResult, SseEvent } from '@/types'
+import type { ChatMessage, CurrentQuestion, InterviewStartResult, SseEvent } from '@/types'
 
 export const useInterviewStore = defineStore('interview', () => {
   const sessionId = ref<number | null>(null)
@@ -15,6 +15,7 @@ export const useInterviewStore = defineStore('interview', () => {
   const inputMode = ref<'TEXT' | 'VOICE'>('TEXT')
   const reportId = ref<number | null>(null)
   const connectionOk = ref(true)
+  const currentQuestion = ref<CurrentQuestion | null>(null)
 
   let abortController: AbortController | null = null
 
@@ -27,6 +28,7 @@ export const useInterviewStore = defineStore('interview', () => {
     streaming.value = false
     streamingContent.value = ''
     reportId.value = null
+    currentQuestion.value = null
     abortController?.abort()
     abortController = null
   }
@@ -37,6 +39,7 @@ export const useInterviewStore = defineStore('interview', () => {
     positionName.value = res.positionName
     totalQuestions.value = res.totalQuestions
     messages.value = [res.firstMessage]
+    currentQuestion.value = res.currentQuestion ?? questionFromMessage(res.firstMessage)
   }
 
   async function start(
@@ -60,6 +63,10 @@ export const useInterviewStore = defineStore('interview', () => {
       role: 'USER',
       content: content.trim(),
       messageType: 'NORMAL',
+      questionId: currentQuestion.value?.questionId,
+      questionOrder: currentQuestion.value?.questionOrder,
+      questionType: currentQuestion.value?.questionType,
+      questionTitle: currentQuestion.value?.questionTitle,
     })
 
     streaming.value = true
@@ -83,15 +90,12 @@ export const useInterviewStore = defineStore('interview', () => {
           } else if (event.type === 'done') {
             streaming.value = false
             if (event.messageId) messages.value[idx].messageId = event.messageId
+            applyQuestionEvent(event)
           } else if (event.type === 'next_question' && event.content) {
             streaming.value = false
             messages.value[idx].content = event.content
-            messages.value.push({
-              role: 'ASSISTANT',
-              content: event.content,
-              messageType: 'QUESTION',
-              questionOrder: event.questionOrder,
-            })
+            messages.value[idx].messageType = 'QUESTION'
+            applyQuestionEvent(event)
           } else if (event.type === 'interview_end') {
             streaming.value = false
             reportId.value = event.reportId ?? null
@@ -117,6 +121,40 @@ export const useInterviewStore = defineStore('interview', () => {
     return res
   }
 
+  async function submitCoding(language: string, code: string) {
+    if (!sessionId.value || !currentQuestion.value) return null
+    return interviewApi.submitCoding(sessionId.value, {
+      questionId: currentQuestion.value.questionId,
+      language,
+      code,
+    })
+  }
+
+  function applyQuestionEvent(event: SseEvent) {
+    if (!event.questionId || !event.questionOrder || !event.questionType || !event.questionTitle) return
+    currentQuestion.value = {
+      questionId: event.questionId,
+      questionOrder: event.questionOrder,
+      questionType: event.questionType,
+      questionTitle: event.questionTitle,
+      topic: event.topic,
+      codingChallenge: event.codingChallenge,
+    }
+  }
+
+  function questionFromMessage(message: ChatMessage): CurrentQuestion | null {
+    if (!message.questionId || !message.questionOrder || !message.questionType || !message.questionTitle) {
+      return null
+    }
+    return {
+      questionId: message.questionId,
+      questionOrder: message.questionOrder,
+      questionType: message.questionType,
+      questionTitle: message.questionTitle,
+      topic: message.topic,
+    }
+  }
+
   return {
     sessionId,
     positionCode,
@@ -128,9 +166,11 @@ export const useInterviewStore = defineStore('interview', () => {
     inputMode,
     reportId,
     connectionOk,
+    currentQuestion,
     reset,
     start,
     sendMessage,
     end,
+    submitCoding,
   }
 })

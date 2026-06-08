@@ -1,5 +1,8 @@
 package com.aiinterview.service.impl;
 
+import cn.hutool.json.JSONArray;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
 import com.aiinterview.common.BusinessException;
 import com.aiinterview.entity.ResumeProject;
 import com.aiinterview.entity.User;
@@ -8,6 +11,7 @@ import com.aiinterview.mapper.ResumeProjectMapper;
 import com.aiinterview.mapper.UserMapper;
 import com.aiinterview.mapper.UserResumeMapper;
 import com.aiinterview.service.ResumeService;
+import com.aiinterview.service.ai.LlmService;
 import com.aiinterview.util.FileUploadUtil;
 import com.aiinterview.util.ResumeSectionParser;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -16,17 +20,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -37,6 +42,9 @@ public class ResumeServiceImpl implements ResumeService {
     private final UserResumeMapper resumeMapper;
     private final ResumeProjectMapper projectMapper;
     private final UserMapper userMapper;
+    private final LlmService llmService;
+    @Qualifier("taskExecutor")
+    private final Executor taskExecutor;
 
     @Value("${app.upload-dir:./uploads}")
     private String uploadDir;
@@ -44,30 +52,42 @@ public class ResumeServiceImpl implements ResumeService {
     @Override
     public Map<String, Object> upload(Long userId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BusinessException("请上传 PDF 文件");
+            throw new BusinessException("Please upload a PDF file");
         }
         String originalName = file.getOriginalFilename();
-        if (originalName == null || !originalName.toLowerCase().endsWith(".pdf")) {
-            throw new BusinessException("仅支持 PDF 格式");
+        if (originalName == null || !originalName.toLowerCase(Locale.ROOT).endsWith(".pdf")) {
+            throw new BusinessException("Only PDF files are supported");
         }
+        Path target = null;
         try {
             Path dir = Paths.get(uploadDir, "resumes", String.valueOf(userId)).toAbsolutePath().normalize();
-            String filename = System.currentTimeMillis() + "_" + originalName;
-            Path target = dir.resolve(filename);
+            String filename = UUID.randomUUID() + ".pdf";
+            target = dir.resolve(filename);
             FileUploadUtil.saveMultipart(file, target);
+            Path savedPath = target;
+
             UserResume resume = new UserResume();
             resume.setUserId(userId);
             resume.setFileUrl("/uploads/resumes/" + userId + "/" + filename);
             resume.setFileName(originalName);
             resume.setParseStatus("PENDING");
             resumeMapper.insert(resume);
-            parseAsync(resume.getId(), target);
+            taskExecutor.execute(() -> parseAsync(resume.getId(), savedPath));
+
             Map<String, Object> data = new HashMap<>();
             data.put("resumeId", resume.getId());
             data.put("parseStatus", resume.getParseStatus());
             return data;
-        } catch (IOException e) {
-            throw new BusinessException("文件上传失败");
+        } catch (Exception e) {
+            log.warn("Resume upload failed for user {}", userId, e);
+            if (target != null) {
+                try {
+                    Files.deleteIfExists(target);
+                } catch (Exception ignored) {
+                    // best-effort cleanup
+                }
+            }
+            throw new BusinessException("Resume upload failed: " + e.getClass().getSimpleName());
         }
     }
 
@@ -81,6 +101,7 @@ public class ResumeServiceImpl implements ResumeService {
             resume.setResumeTextMd(text);
             resume.setParseStatus("SUCCESS");
             resumeMapper.updateById(resume);
+
             Map<String, String> sections = ResumeSectionParser.extractSections(text);
             syncProfileFromResume(resume.getUserId(), sections);
             extractProjects(resume, sections.getOrDefault(ResumeSectionParser.KEY_PROJECT, text));
@@ -129,80 +150,88 @@ public class ResumeServiceImpl implements ResumeService {
         userMapper.updateById(user);
     }
 
-    private void extractProjects(UserResume resume, String projectText) {
-        if (!StringUtils.hasText(projectText)) {
-            return;
+    private void extractProjects(UserResume resume, String text) {
+        projectMapper.delete(new LambdaQueryWrapper<ResumeProject>().eq(ResumeProject::getResumeId, resume.getId()));
+        List<ResumeProject> projects = llmService.isAvailable()
+                ? extractProjectsWithLlm(resume.getId(), text)
+                : List.of();
+        if (projects.isEmpty()) {
+            projects = extractProjectsByRule(resume.getId(), text);
         }
-        List<String> sections = splitProjectSections(projectText);
         int order = 1;
-        for (String section : sections) {
-            String trimmed = section.trim();
-            if (trimmed.length() < 20) {
-                continue;
-            }
-            ResumeProject p = new ResumeProject();
-            p.setResumeId(resume.getId());
-            p.setProjectName(extractProjectName(trimmed, order));
-            p.setSummaryMd(truncate(trimmed, 500));
-            p.setTechStackTokens(extractTechStack(trimmed));
-            p.setSortOrder(order++);
-            projectMapper.insert(p);
-            if (order > 5) {
-                break;
-            }
-        }
-        if (order == 1) {
-            ResumeProject p = new ResumeProject();
-            p.setResumeId(resume.getId());
-            p.setProjectName("简历摘要");
-            p.setSummaryMd(truncate(projectText.trim(), 500));
-            p.setTechStackTokens(extractTechStack(projectText));
-            p.setSortOrder(1);
-            projectMapper.insert(p);
+        for (ResumeProject project : projects.stream().limit(5).toList()) {
+            project.setSortOrder(order++);
+            projectMapper.insert(project);
         }
     }
 
-    private List<String> splitProjectSections(String text) {
-        if (text == null || text.isBlank()) {
+    private List<ResumeProject> extractProjectsWithLlm(Long resumeId, String text) {
+        try {
+            String prompt = "Extract up to 3 project experiences from this resume text as a JSON array. "
+                    + "Fields: projectName, summaryMd, techStackTokens(string array). Return JSON only.\n\n"
+                    + truncate(text, 5000);
+            String raw = llmService.chat(List.of(new LlmService.ChatMessage("user", prompt)));
+            JSONArray arr = JSONUtil.parseArray(extractJsonArray(raw));
+            List<ResumeProject> result = new ArrayList<>();
+            for (Object item : arr) {
+                JSONObject obj = JSONUtil.parseObj(item);
+                ResumeProject p = new ResumeProject();
+                p.setResumeId(resumeId);
+                p.setProjectName(defaultString(obj.getStr("projectName"), "Resume project"));
+                p.setSummaryMd(defaultString(obj.getStr("summaryMd"), truncate(text, 300)));
+                p.setTechStackTokens(obj.getJSONArray("techStackTokens") == null
+                        ? inferTechTokens(text)
+                        : obj.getJSONArray("techStackTokens").toList(String.class));
+                result.add(p);
+            }
+            return result;
+        } catch (Exception e) {
+            log.warn("LLM resume project extraction failed, fallback to rules", e);
             return List.of();
         }
-        String normalized = text.replace('\r', '\n');
-        String[] byHeading = normalized.split("(?=(?i)(项目经历|实习经历|工作经历|个人项目|研发经历))");
-        if (byHeading.length > 1) {
-            return Arrays.stream(byHeading)
-                    .skip(1)
-                    .map(s -> s.split("(?=(?i)(教育经历|技能|自我评价|获奖|证书))")[0])
-                    .filter(s -> s.trim().length() >= 20)
-                    .collect(Collectors.toList());
+    }
+
+    private List<ResumeProject> extractProjectsByRule(Long resumeId, String text) {
+        String normalized = text == null ? "" : text.replace("\r", "\n");
+        List<String> blocks = Arrays.stream(normalized.split("\\n\\s*\\n|项目经历|项目经验|Projects?|PROJECTS?"))
+                .map(String::trim)
+                .filter(s -> s.length() > 30)
+                .limit(3)
+                .toList();
+        if (blocks.isEmpty()) {
+            blocks = List.of(normalized);
         }
-        return Arrays.stream(normalized.split("\\n{2,}"))
-                .filter(s -> s.contains("项目") || s.matches("(?s).*\\d{4}.*"))
-                .limit(5)
+        List<String> techTokens = inferTechTokens(normalized);
+        List<ResumeProject> result = new ArrayList<>();
+        int index = 1;
+        for (String block : blocks) {
+            ResumeProject p = new ResumeProject();
+            p.setResumeId(resumeId);
+            p.setProjectName(inferProjectName(block, index++));
+            p.setSummaryMd(truncate(block, 500));
+            p.setTechStackTokens(techTokens);
+            result.add(p);
+        }
+        return result;
+    }
+
+    private List<String> inferTechTokens(String text) {
+        String lower = text == null ? "" : text.toLowerCase(Locale.ROOT);
+        List<String> candidates = List.of("Java", "Spring Boot", "MySQL", "Redis", "Vue", "React",
+                "TypeScript", "Python", "Django", "Flask", "C++", "C#", "Unity", "Docker", "Kafka", "MyBatis");
+        List<String> tokens = candidates.stream()
+                .filter(token -> lower.contains(token.toLowerCase(Locale.ROOT)))
+                .limit(8)
                 .collect(Collectors.toList());
+        return tokens.isEmpty() ? List.of("项目设计", "问题排查") : tokens;
     }
 
-    private String extractProjectName(String section, int order) {
-        String[] lines = section.split("\\n");
-        for (String line : lines) {
-            String trimmed = line.trim();
-            if (trimmed.length() >= 2 && trimmed.length() <= 40 && !trimmed.matches("(?i).*负责.*")) {
-                return trimmed.replaceAll("^[\\d.、\\-•\\s]+", "");
-            }
-        }
-        return "项目 " + order;
-    }
-
-    private List<String> extractTechStack(String text) {
-        List<String> keywords = List.of(
-                "Java", "Spring Boot", "Spring", "MySQL", "Redis", "Vue", "React",
-                "Python", "Docker", "Kubernetes", "Kafka", "MyBatis", "TypeScript");
-        List<String> found = new ArrayList<>();
-        for (String kw : keywords) {
-            if (text.contains(kw)) {
-                found.add(kw);
-            }
-        }
-        return found.isEmpty() ? List.of("待补充") : found;
+    private String inferProjectName(String block, int index) {
+        return Arrays.stream(block.split("\\n"))
+                .map(line -> line.replaceAll("^[#\\-*\\d.\\s]+", "").trim())
+                .filter(line -> line.length() >= 4 && line.length() <= 40)
+                .findFirst()
+                .orElse("项目 " + index);
     }
 
     @Override
@@ -260,9 +289,22 @@ public class ResumeServiceImpl implements ResumeService {
     private UserResume requireOwned(Long userId, Long resumeId) {
         UserResume resume = resumeMapper.selectById(resumeId);
         if (resume == null || !resume.getUserId().equals(userId)) {
-            throw BusinessException.notFound("简历不存在");
+            throw BusinessException.notFound("Resume not found");
         }
         return resume;
+    }
+
+    private String extractJsonArray(String raw) {
+        int start = raw == null ? -1 : raw.indexOf('[');
+        int end = raw == null ? -1 : raw.lastIndexOf(']');
+        if (start >= 0 && end > start) {
+            return raw.substring(start, end + 1);
+        }
+        return "[]";
+    }
+
+    private String defaultString(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     private String truncate(String s, int max) {

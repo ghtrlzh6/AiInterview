@@ -20,4 +20,6 @@ public interface InterviewService {
     Map<String, Object> getMessages(Long userId, Long sessionId);
 
     Map<String, Object> codingSubmit(Long userId, Long sessionId, CodingSubmitRequest request);
+
+    Map<String, Object> latestCodingSubmit(Long userId, Long sessionId, Long questionId);
 }

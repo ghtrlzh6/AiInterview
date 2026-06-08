@@ -37,7 +37,9 @@ public class InterviewServiceImpl implements InterviewService {
     private final ChatMessageMapper chatMessageMapper;
     private final PositionMapper positionMapper;
     private final UserResumeMapper resumeMapper;
+    private final ResumeProjectMapper resumeProjectMapper;
     private final SessionCodingSubmitMapper codingSubmitMapper;
+    private final CodingChallengeMapper codingChallengeMapper;
     private final EvaluationReportMapper reportMapper;
     private final FollowUpStrategy followUpStrategy;
     private final LlmService llmService;
@@ -63,20 +65,22 @@ public class InterviewServiceImpl implements InterviewService {
             }
         }
         int count = request.getQuestionCount() != null ? request.getQuestionCount() : 8;
-        List<Question> questions = pickQuestions(request.getPositionCode(), count);
-        if (questions.isEmpty()) {
-            questions = createFallbackQuestions(request.getPositionCode(), count);
-        }
         InterviewSession session = new InterviewSession();
         session.setUserId(userId);
         session.setResumeSnapshotId(request.getResumeSnapshotId());
         session.setPositionCode(request.getPositionCode());
         session.setSessionStatus("IN_PROGRESS");
         session.setInputMode(StringUtils.hasText(request.getInputMode()) ? request.getInputMode() : "TEXT");
-        session.setTotalQuestions(questions.size());
+        session.setTotalQuestions(0);
         session.setAnsweredCount(0);
         session.setStartTime(LocalDateTime.now());
         sessionMapper.insert(session);
+        List<Question> questions = pickQuestions(request.getPositionCode(), count, session.getId(), request.getResumeSnapshotId());
+        if (questions.isEmpty()) {
+            questions = createFallbackQuestions(request.getPositionCode(), count);
+        }
+        session.setTotalQuestions(questions.size());
+        sessionMapper.updateById(session);
         int order = 1;
         for (Question q : questions) {
             InterviewQuestion iq = new InterviewQuestion();
@@ -98,13 +102,10 @@ public class InterviewServiceImpl implements InterviewService {
         data.put("positionCode", session.getPositionCode());
         data.put("positionName", position.getName());
         data.put("totalQuestions", session.getTotalQuestions());
-        Map<String, Object> msg = new HashMap<>();
-        msg.put("messageId", firstMsg.getId());
-        msg.put("role", "ASSISTANT");
-        msg.put("content", firstMsg.getContent());
-        msg.put("messageType", "QUESTION");
-        msg.put("questionOrder", 1);
+        Map<String, Object> currentQuestion = buildQuestionMeta(firstQ, 1);
+        Map<String, Object> msg = buildMessageMeta(firstMsg, firstQ, 1);
         data.put("firstMessage", msg);
+        data.put("currentQuestion", currentQuestion);
         return data;
     }
 
@@ -163,7 +164,10 @@ public class InterviewServiceImpl implements InterviewService {
                 if (nextIq != null) {
                     Question nextQ = questionMapper.selectById(nextIq.getQuestionId());
                     content = "**下一题：**" + nextQ.getTitle();
-                    sendEvent(emitter, Map.of("type", "next_question", "content", content));
+                    Map<String, Object> event = new HashMap<>(buildQuestionMeta(nextQ, ctx.currentOrder));
+                    event.put("type", "next_question");
+                    event.put("content", content);
+                    sendEvent(emitter, event);
                 }
             }
             case END -> {
@@ -188,6 +192,10 @@ public class InterviewServiceImpl implements InterviewService {
         done.put("messageId", reply.getId());
         done.put("messageType", messageType);
         done.put("questionOrder", ctx.currentOrder);
+        Question activeQuestion = resolveQuestionForOrder(session.getId(), ctx.currentOrder);
+        if (activeQuestion != null) {
+            done.putAll(buildQuestionMeta(activeQuestion, ctx.currentOrder));
+        }
         if (reportId != null) done.put("reportId", reportId);
         sendEvent(emitter, done);
         emitter.complete();
@@ -235,6 +243,11 @@ public class InterviewServiceImpl implements InterviewService {
         m.put("durationSeconds", session.getDurationSeconds());
         m.put("startTime", session.getStartTime());
         m.put("endTime", session.getEndTime());
+        int currentOrder = Math.min(session.getAnsweredCount() + 1, Math.max(session.getTotalQuestions(), 1));
+        Question currentQuestion = resolveQuestionForOrder(sessionId, currentOrder);
+        if (currentQuestion != null) {
+            m.put("currentQuestion", buildQuestionMeta(currentQuestion, currentOrder));
+        }
         return m;
     }
 
@@ -247,6 +260,10 @@ public class InterviewServiceImpl implements InterviewService {
         Map<Long, Integer> questionOrderMap = interviewQuestionMapper.selectList(
                         new LambdaQueryWrapper<InterviewQuestion>().eq(InterviewQuestion::getSessionId, sessionId))
                 .stream().collect(Collectors.toMap(InterviewQuestion::getQuestionId, InterviewQuestion::getQuestionOrder));
+        Map<Long, Question> questionMap = questionOrderMap.keySet().isEmpty()
+                ? Map.of()
+                : questionMapper.selectBatchIds(questionOrderMap.keySet()).stream()
+                .collect(Collectors.toMap(Question::getId, q -> q));
         List<Map<String, Object>> list = messages.stream().map(msg -> {
             Map<String, Object> m = new HashMap<>();
             m.put("messageId", msg.getId());
@@ -254,6 +271,13 @@ public class InterviewServiceImpl implements InterviewService {
             m.put("content", msg.getContent());
             m.put("messageType", msg.getMessageType());
             m.put("questionOrder", msg.getQuestionId() != null ? questionOrderMap.getOrDefault(msg.getQuestionId(), 0) : 0);
+            if (msg.getQuestionId() != null && questionMap.containsKey(msg.getQuestionId())) {
+                Question q = questionMap.get(msg.getQuestionId());
+                m.put("questionId", q.getId());
+                m.put("questionType", q.getQuestionType());
+                m.put("questionTitle", q.getTitle());
+                m.put("topic", q.getTopic());
+            }
             m.put("createdAt", msg.getCreatedAt());
             return m;
         }).collect(Collectors.toList());
@@ -267,6 +291,10 @@ public class InterviewServiceImpl implements InterviewService {
     @Transactional
     public Map<String, Object> codingSubmit(Long userId, Long sessionId, CodingSubmitRequest request) {
         requireSession(userId, sessionId);
+        Question question = requireSessionQuestion(sessionId, request.getQuestionId());
+        if (!"BEHAVIOR".equals(question.getQuestionType())) {
+            throw new BusinessException("当前题目不是手撕代码题");
+        }
         Long count = codingSubmitMapper.selectCount(new LambdaQueryWrapper<SessionCodingSubmit>()
                 .eq(SessionCodingSubmit::getSessionId, sessionId)
                 .eq(SessionCodingSubmit::getQuestionId, request.getQuestionId()));
@@ -280,16 +308,107 @@ public class InterviewServiceImpl implements InterviewService {
         Map<String, Object> m = new HashMap<>();
         m.put("submitId", submit.getId());
         m.put("submitOrder", submit.getSubmitOrder());
+        m.put("questionId", question.getId());
+        m.put("language", submit.getLanguage());
+        m.put("review", reviewCode(question, request));
+        m.put("followUpSuggestion", "提交后请用文字说明你的算法思路、复杂度和边界条件，面试官会基于代码继续追问。");
+        m.put("createdAt", submit.getCreatedAt());
         return m;
     }
 
-    private List<Question> pickQuestions(String positionCode, int count) {
+    @Override
+    public Map<String, Object> latestCodingSubmit(Long userId, Long sessionId, Long questionId) {
+        requireSession(userId, sessionId);
+        requireSessionQuestion(sessionId, questionId);
+        SessionCodingSubmit submit = codingSubmitMapper.selectOne(new LambdaQueryWrapper<SessionCodingSubmit>()
+                .eq(SessionCodingSubmit::getSessionId, sessionId)
+                .eq(SessionCodingSubmit::getQuestionId, questionId)
+                .orderByDesc(SessionCodingSubmit::getSubmitOrder)
+                .last("LIMIT 1"));
+        if (submit == null) {
+            return Map.of("submitted", false);
+        }
+        Map<String, Object> m = new HashMap<>();
+        m.put("submitted", true);
+        m.put("submitId", submit.getId());
+        m.put("submitOrder", submit.getSubmitOrder());
+        m.put("questionId", submit.getQuestionId());
+        m.put("language", submit.getLanguage());
+        m.put("code", submit.getCodeBody());
+        m.put("createdAt", submit.getCreatedAt());
+        return m;
+    }
+
+    private List<Question> pickQuestions(String positionCode, int count, Long sessionId, Long resumeSnapshotId) {
+        List<Question> selected = new ArrayList<>();
+        if (resumeSnapshotId != null) {
+            Question projectQuestion = createProjectDeepQuestion(positionCode, sessionId, resumeSnapshotId);
+            if (projectQuestion != null) {
+                selected.add(projectQuestion);
+            }
+        }
+        addOneByType(selected, positionCode, "BEHAVIOR");
+        addOneByType(selected, positionCode, "SCENARIO");
+        addOneByType(selected, positionCode, "TECH_KNOWLEDGE");
+
         List<Question> all = questionMapper.selectList(new LambdaQueryWrapper<Question>()
                 .eq(Question::getPositionCode, positionCode)
                 .isNull(Question::getBindingSessionId)
-                .last("LIMIT " + count * 3));
+                .last("LIMIT " + Math.max(count * 4, 20)));
         Collections.shuffle(all);
-        return all.stream().limit(count).collect(Collectors.toList());
+        Set<Long> selectedIds = selected.stream()
+                .map(Question::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        for (Question question : all) {
+            if (selected.size() >= count) {
+                break;
+            }
+            if (question.getId() != null && selectedIds.add(question.getId())) {
+                selected.add(question);
+            }
+        }
+        return selected.stream().limit(count).collect(Collectors.toList());
+    }
+
+    private void addOneByType(List<Question> selected, String positionCode, String questionType) {
+        Question question = questionMapper.selectOne(new LambdaQueryWrapper<Question>()
+                .eq(Question::getPositionCode, positionCode)
+                .eq(Question::getQuestionType, questionType)
+                .isNull(Question::getBindingSessionId)
+                .last("LIMIT 1"));
+        if (question != null && selected.stream().noneMatch(q -> Objects.equals(q.getId(), question.getId()))) {
+            selected.add(question);
+        }
+    }
+
+    private Question createProjectDeepQuestion(String positionCode, Long sessionId, Long resumeSnapshotId) {
+        ResumeProject project = resumeProjectMapper.selectOne(new LambdaQueryWrapper<ResumeProject>()
+                .eq(ResumeProject::getResumeId, resumeSnapshotId)
+                .orderByAsc(ResumeProject::getSortOrder)
+                .last("LIMIT 1"));
+        if (project == null) {
+            return null;
+        }
+        String title = "请结合简历中的「" + project.getProjectName()
+                + "」项目，深入讲解一个你亲自解决的技术挑战，并说明方案权衡。";
+        Question q = new Question();
+        q.setPositionCode(positionCode);
+        q.setBindingSessionId(sessionId);
+        q.setTitle(title);
+        q.setAnswerReference("结合简历项目背景、技术栈、个人职责、问题定位、方案取舍、落地效果和复盘总结展开。");
+        q.setDifficulty(2);
+        q.setQuestionType("PROJECT_DEEP");
+        q.setTopic("简历项目");
+        q.setSource("AI_PROJECT_FALLBACK");
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("resumeSnapshotId", resumeSnapshotId);
+        meta.put("resumeProjectId", project.getId());
+        meta.put("projectName", project.getProjectName());
+        meta.put("summary", project.getSummaryMd());
+        q.setGenerationMeta(meta);
+        questionMapper.insert(q);
+        return q;
     }
 
     private List<Question> createFallbackQuestions(String positionCode, int count) {
@@ -324,6 +443,87 @@ public class InterviewServiceImpl implements InterviewService {
         msg.setMessageType(messageType);
         chatMessageMapper.insert(msg);
         return msg;
+    }
+
+    private Map<String, Object> buildMessageMeta(ChatMessage message, Question question, int questionOrder) {
+        Map<String, Object> msg = new HashMap<>();
+        msg.put("messageId", message.getId());
+        msg.put("role", message.getRole());
+        msg.put("content", message.getContent());
+        msg.put("messageType", message.getMessageType());
+        msg.put("questionOrder", questionOrder);
+        msg.putAll(buildQuestionMeta(question, questionOrder));
+        return msg;
+    }
+
+    private Map<String, Object> buildQuestionMeta(Question question, int questionOrder) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("questionId", question.getId());
+        m.put("questionOrder", questionOrder);
+        m.put("questionType", question.getQuestionType());
+        m.put("questionTitle", question.getTitle());
+        m.put("topic", question.getTopic());
+        if ("BEHAVIOR".equals(question.getQuestionType()) && question.getCodingChallengeId() != null) {
+            CodingChallenge challenge = codingChallengeMapper.selectById(question.getCodingChallengeId());
+            if (challenge != null) {
+                Map<String, Object> challengeMap = new HashMap<>();
+                challengeMap.put("id", challenge.getId());
+                challengeMap.put("title", challenge.getTitle());
+                challengeMap.put("problemMd", challenge.getProblemMd());
+                challengeMap.put("difficulty", challenge.getDifficulty());
+                challengeMap.put("tags", challenge.getCanonicalTags());
+                m.put("codingChallenge", challengeMap);
+            }
+        }
+        return m;
+    }
+
+    private Question resolveQuestionForOrder(Long sessionId, int order) {
+        InterviewQuestion iq = getCurrentQuestion(sessionId, order);
+        return iq == null ? null : questionMapper.selectById(iq.getQuestionId());
+    }
+
+    private Question requireSessionQuestion(Long sessionId, Long questionId) {
+        InterviewQuestion iq = interviewQuestionMapper.selectOne(new LambdaQueryWrapper<InterviewQuestion>()
+                .eq(InterviewQuestion::getSessionId, sessionId)
+                .eq(InterviewQuestion::getQuestionId, questionId)
+                .last("LIMIT 1"));
+        if (iq == null) {
+            throw BusinessException.notFound("题目不属于当前会话");
+        }
+        Question question = questionMapper.selectById(questionId);
+        if (question == null) {
+            throw BusinessException.notFound("题目不存在");
+        }
+        return question;
+    }
+
+    private String reviewCode(Question question, CodingSubmitRequest request) {
+        if (!StringUtils.hasText(request.getCode()) || request.getCode().trim().length() < 20) {
+            return "代码内容较短，请补充完整实现，并说明核心思路、复杂度和关键边界条件。";
+        }
+        if (!llmService.isAvailable()) {
+            return mockCodeReview(request.getCode());
+        }
+        try {
+            String prompt = "你是代码面试官。请基于题目和候选人代码给出简短评审，指出正确思路、复杂度和一个追问点。"
+                    + "\n题目：" + question.getTitle()
+                    + "\n语言：" + request.getLanguage()
+                    + "\n代码：\n" + request.getCode();
+            String raw = llmService.chat(List.of(new LlmService.ChatMessage("user", prompt)));
+            return StringUtils.hasText(raw) ? raw : mockCodeReview(request.getCode());
+        } catch (Exception e) {
+            log.warn("Code review failed, fallback to mock", e);
+            return mockCodeReview(request.getCode());
+        }
+    }
+
+    private String mockCodeReview(String code) {
+        String complexityHint = code.contains("for") || code.contains("while")
+                ? "代码中已经体现了遍历思路，请注意说明时间复杂度和边界条件。"
+                : "请在讲解时补充主要控制流程和复杂度分析。";
+        return "代码已保存。初步评审：整体提交可用于继续面试，" + complexityHint
+                + "下一步建议说明为什么选择该算法，以及空输入、重复元素或极端规模下如何处理。";
     }
 
     private String buildGreeting(String positionName, int total, String firstTitle) {
