@@ -1,6 +1,10 @@
 <template>
   <el-container class="min-h-screen">
-    <el-aside width="240px" class="bg-white border-r border-slate-200 hidden md:block">
+    <el-aside
+      v-if="!isInterviewLocked"
+      width="240px"
+      class="bg-white border-r border-slate-200 hidden md:block"
+    >
       <div class="p-6 border-b border-slate-100">
         <router-link to="/" class="flex items-center gap-2 no-underline">
           <el-icon :size="28" class="text-brand-600"><Monitor /></el-icon>
@@ -43,7 +47,10 @@
       </el-menu>
     </el-aside>
     <el-container>
-      <el-header class="bg-white border-b border-slate-200 flex items-center justify-between h-16 px-6">
+      <el-header
+        v-if="!isInterviewLocked"
+        class="bg-white border-b border-slate-200 flex items-center justify-between h-16 px-6"
+      >
         <span class="font-medium text-slate-700 md:hidden">AI 模拟面试</span>
         <div class="flex items-center gap-4 ml-auto">
           <router-link to="/profile" class="flex items-center gap-2 no-underline">
@@ -57,7 +64,7 @@
           <el-button type="danger" link @click="handleLogout">退出</el-button>
         </div>
       </el-header>
-      <el-main class="bg-slate-50 p-6">
+      <el-main class="bg-slate-50" :class="isInterviewLocked ? 'p-2 md:p-3' : 'p-6'">
         <router-view />
       </el-main>
     </el-container>
@@ -75,6 +82,7 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const avatarUrl = computed(() => resolveUploadUrl(auth.userInfo?.avatarUrl))
+const isInterviewLocked = computed(() => route.name === 'interview-room')
 
 const activeMenu = computed(() => {
   if (route.path.startsWith('/admin')) return '/admin'

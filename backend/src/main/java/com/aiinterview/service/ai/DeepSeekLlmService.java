@@ -42,6 +42,9 @@ public class DeepSeekLlmService implements LlmService {
     @Value("${ai.llm.temperature:0.7}")
     private double temperature;
 
+    private static final String THINK_OPEN = "<think>";
+    private static final String THINK_CLOSE = "</think>";
+
     @Override
     public boolean isAvailable() {
         return StringUtils.hasText(apiKey);
@@ -71,7 +74,7 @@ public class DeepSeekLlmService implements LlmService {
                     return mockChatResponse(messages);
                 }
                 JSONObject json = JSONUtil.parseObj(response.body().string());
-                return json.getByPath("choices[0].message.content", String.class);
+                return stripReasoning(json.getByPath("choices[0].message.content", String.class));
             }
         } catch (Exception e) {
             log.warn("LLM chat error, fallback to mock", e);
@@ -101,6 +104,8 @@ public class DeepSeekLlmService implements LlmService {
                 try (BufferedReader reader = new BufferedReader(
                         new InputStreamReader(response.body().byteStream(), StandardCharsets.UTF_8))) {
                     String line;
+                    StringBuilder visibleBuffer = new StringBuilder();
+                    boolean[] inReasoning = {false};
                     while ((line = reader.readLine()) != null) {
                         if (!line.startsWith("data: ")) {
                             continue;
@@ -112,7 +117,10 @@ public class DeepSeekLlmService implements LlmService {
                         JSONObject chunk = JSONUtil.parseObj(data);
                         String token = chunk.getByPath("choices[0].delta.content", String.class);
                         if (StringUtils.hasText(token)) {
-                            onToken.accept(token);
+                            String visible = filterReasoningToken(token, visibleBuffer, inReasoning);
+                            if (StringUtils.hasText(visible)) {
+                                onToken.accept(visible);
+                            }
                         }
                     }
                 }
@@ -173,6 +181,55 @@ public class DeepSeekLlmService implements LlmService {
         }
         body.set("messages", arr);
         return body;
+    }
+
+    private String stripReasoning(String content) {
+        if (!StringUtils.hasText(content)) {
+            return content;
+        }
+        return content.replaceAll("(?is)<think>.*?</think>", "").trim();
+    }
+
+    private String filterReasoningToken(String token, StringBuilder buffer, boolean[] inReasoning) {
+        buffer.append(token);
+        StringBuilder visible = new StringBuilder();
+        while (buffer.length() > 0) {
+            if (inReasoning[0]) {
+                int close = indexOfIgnoreCase(buffer, THINK_CLOSE);
+                if (close < 0) {
+                    trimBuffer(buffer, THINK_CLOSE.length());
+                    return visible.toString();
+                }
+                buffer.delete(0, close + THINK_CLOSE.length());
+                inReasoning[0] = false;
+                continue;
+            }
+
+            int open = indexOfIgnoreCase(buffer, THINK_OPEN);
+            if (open < 0) {
+                int safeLength = Math.max(0, buffer.length() - THINK_OPEN.length() + 1);
+                if (safeLength > 0) {
+                    visible.append(buffer.substring(0, safeLength));
+                    buffer.delete(0, safeLength);
+                }
+                return visible.toString();
+            }
+
+            visible.append(buffer.substring(0, open));
+            buffer.delete(0, open + THINK_OPEN.length());
+            inReasoning[0] = true;
+        }
+        return visible.toString();
+    }
+
+    private int indexOfIgnoreCase(StringBuilder text, String pattern) {
+        return text.toString().toLowerCase().indexOf(pattern.toLowerCase());
+    }
+
+    private void trimBuffer(StringBuilder buffer, int keepChars) {
+        if (buffer.length() > keepChars) {
+            buffer.delete(0, buffer.length() - keepChars);
+        }
     }
 
     private String mockChatResponse(List<ChatMessage> messages) {

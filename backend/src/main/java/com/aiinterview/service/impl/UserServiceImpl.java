@@ -131,7 +131,9 @@ public class UserServiceImpl implements UserService {
             if (report != null) {
                 item.put("overallScore", report.getOverallScore());
                 item.put("reportId", report.getId());
+                item.put("reportStatus", report.getReportStatus());
             }
+            item.put("canGenerateReport", "COMPLETED".equals(s.getSessionStatus()) && report == null);
             list.add(item);
         }
         return new PageResult<>(p.getTotal(), page, size, list);

@@ -1,6 +1,7 @@
 package com.aiinterview.service;
 
 import com.aiinterview.dto.interview.CodingSubmitRequest;
+import com.aiinterview.dto.interview.EndInterviewRequest;
 import com.aiinterview.dto.interview.SendMessageRequest;
 import com.aiinterview.dto.interview.StartInterviewRequest;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -11,9 +12,13 @@ public interface InterviewService {
 
     Map<String, Object> start(Long userId, StartInterviewRequest request);
 
+    Map<String, Object> getActiveSession(Long userId);
+
     SseEmitter sendMessage(Long userId, Long sessionId, SendMessageRequest request);
 
-    Map<String, Object> end(Long userId, Long sessionId);
+    Map<String, Object> end(Long userId, Long sessionId, EndInterviewRequest request);
+
+    Map<String, Object> generateReport(Long userId, Long sessionId);
 
     Map<String, Object> getSession(Long userId, Long sessionId);
 

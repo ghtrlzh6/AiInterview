@@ -3,6 +3,7 @@ package com.aiinterview.service.impl;
 import cn.hutool.json.JSONUtil;
 import com.aiinterview.common.BusinessException;
 import com.aiinterview.dto.interview.CodingSubmitRequest;
+import com.aiinterview.dto.interview.EndInterviewRequest;
 import com.aiinterview.dto.interview.SendMessageRequest;
 import com.aiinterview.dto.interview.StartInterviewRequest;
 import com.aiinterview.entity.*;
@@ -50,6 +51,10 @@ public class InterviewServiceImpl implements InterviewService {
     @Override
     @Transactional
     public Map<String, Object> start(Long userId, StartInterviewRequest request) {
+        InterviewSession active = findActiveSession(userId);
+        if (active != null) {
+            throw new BusinessException("还有未完成的面试，请先继续或结束当前面试");
+        }
         Position position = positionMapper.selectOne(new LambdaQueryWrapper<Position>()
                 .eq(Position::getCode, request.getPositionCode()));
         if (position == null) {
@@ -110,13 +115,27 @@ public class InterviewServiceImpl implements InterviewService {
     }
 
     @Override
+    public Map<String, Object> getActiveSession(Long userId) {
+        InterviewSession active = findActiveSession(userId);
+        if (active == null) {
+            return Map.of("active", false);
+        }
+        Map<String, Object> detail = buildSessionDetail(active);
+        detail.put("active", true);
+        return detail;
+    }
+
+    @Override
     public SseEmitter sendMessage(Long userId, Long sessionId, SendMessageRequest request) {
         InterviewSession session = requireSession(userId, sessionId);
         if (!"IN_PROGRESS".equals(session.getSessionStatus())) {
             throw new BusinessException("面试已结束");
         }
-        SessionContext ctx = sessionContexts.computeIfAbsent(sessionId, k -> new SessionContext());
+        SessionContext ctx = sessionContexts.computeIfAbsent(sessionId, k -> rebuildSessionContext(session));
         InterviewQuestion currentIq = getCurrentQuestion(sessionId, ctx.currentOrder);
+        if (currentIq == null) {
+            throw new BusinessException("当前面试题目不存在，请结束本次面试后重新开始");
+        }
         Question currentQ = questionMapper.selectById(currentIq.getQuestionId());
         saveMessage(sessionId, currentQ.getId(), "USER", request.getContent(), request.getMessageType(), ctx.currentOrder);
         Position position = positionMapper.selectOne(new LambdaQueryWrapper<Position>()
@@ -124,14 +143,18 @@ public class InterviewServiceImpl implements InterviewService {
         FollowUpStrategy.Decision decision = followUpStrategy.decide(
                 currentQ, request.getContent(), ctx.followUpCount,
                 ctx.currentOrder, session.getTotalQuestions(),
-                position != null ? position.getName() : session.getPositionCode());
+                position != null ? position.getName() : session.getPositionCode(),
+                latestCodingContext(sessionId, currentQ));
         SseEmitter emitter = new SseEmitter(120000L);
         new Thread(() -> {
             try {
                 streamResponse(emitter, decision, session, ctx, currentQ, currentIq);
             } catch (Exception e) {
                 log.error("SSE error", e);
-                sendEvent(emitter, Map.of("type", "error", "content", e.getMessage()));
+                Map<String, Object> errorEvent = new HashMap<>();
+                errorEvent.put("type", "error");
+                errorEvent.put("content", StringUtils.hasText(e.getMessage()) ? e.getMessage() : "SSE response failed");
+                sendEvent(emitter, errorEvent);
                 emitter.completeWithError(e);
             }
         }).start();
@@ -142,15 +165,13 @@ public class InterviewServiceImpl implements InterviewService {
                                 InterviewSession session, SessionContext ctx,
                                 Question currentQ, InterviewQuestion currentIq) throws IOException {
         String content = decision.content();
-        llmService.chatStream(
-                List.of(new LlmService.ChatMessage("user", "请用自然语言回复：" + content)),
-                token -> sendEvent(emitter, Map.of("type", "token", "content", token)));
         String messageType;
         Long reportId = null;
         switch (decision.action()) {
             case FOLLOW_UP -> {
                 ctx.followUpCount++;
                 messageType = "FOLLOW_UP";
+                sendEvent(emitter, Map.of("type", "token", "content", content));
             }
             case NEXT_QUESTION -> {
                 currentIq.setIsAnswered(1);
@@ -173,10 +194,15 @@ public class InterviewServiceImpl implements InterviewService {
             case END -> {
                 currentIq.setIsAnswered(1);
                 interviewQuestionMapper.updateById(currentIq);
-                Map<String, Object> endData = endSession(session);
+                Map<String, Object> endData = endSession(session, true);
                 reportId = (Long) endData.get("reportId");
-                sendEvent(emitter, Map.of("type", "interview_end", "reportId", reportId,
-                        "content", "面试已结束，正在生成报告..."));
+                Map<String, Object> endEvent = new HashMap<>();
+                endEvent.put("type", "interview_end");
+                endEvent.put("content", endData.getOrDefault("message", "Interview completed, generating report..."));
+                if (reportId != null) {
+                    endEvent.put("reportId", reportId);
+                }
+                sendEvent(emitter, endEvent);
                 messageType = "CLOSING";
                 content = decision.content();
             }
@@ -203,12 +229,24 @@ public class InterviewServiceImpl implements InterviewService {
 
     @Override
     @Transactional
-    public Map<String, Object> end(Long userId, Long sessionId) {
+    public Map<String, Object> end(Long userId, Long sessionId, EndInterviewRequest request) {
         InterviewSession session = requireSession(userId, sessionId);
-        return endSession(session);
+        boolean generateReport = request == null || !Boolean.FALSE.equals(request.getGenerateReport());
+        return endSession(session, generateReport);
     }
 
-    private Map<String, Object> endSession(InterviewSession session) {
+    @Override
+    @Transactional
+    public Map<String, Object> generateReport(Long userId, Long sessionId) {
+        InterviewSession session = requireSession(userId, sessionId);
+        if ("IN_PROGRESS".equals(session.getSessionStatus())) {
+            endSession(session, false);
+        }
+        EvaluationReport report = generateReportForSession(session);
+        return buildEndResponse(session.getId(), report);
+    }
+
+    private Map<String, Object> endSession(InterviewSession session, boolean generateReport) {
         if ("COMPLETED".equals(session.getSessionStatus())) {
             EvaluationReport existing = reportMapper.selectOne(new LambdaQueryWrapper<EvaluationReport>()
                     .eq(EvaluationReport::getSessionId, session.getId()));
@@ -220,6 +258,17 @@ public class InterviewServiceImpl implements InterviewService {
             session.setDurationSeconds((int) Duration.between(session.getStartTime(), session.getEndTime()).getSeconds());
         }
         sessionMapper.updateById(session);
+        sessionContexts.remove(session.getId());
+        EvaluationReport report = generateReport ? generateReportForSession(session) : null;
+        return buildEndResponse(session.getId(), report);
+    }
+
+    private EvaluationReport generateReportForSession(InterviewSession session) {
+        EvaluationReport existing = reportMapper.selectOne(new LambdaQueryWrapper<EvaluationReport>()
+                .eq(EvaluationReport::getSessionId, session.getId()));
+        if (existing != null) {
+            return existing;
+        }
         EvaluationReport report = new EvaluationReport();
         report.setSessionId(session.getId());
         report.setUserId(session.getUserId());
@@ -227,24 +276,31 @@ public class InterviewServiceImpl implements InterviewService {
         report.setReportStatus("GENERATING");
         reportMapper.insert(report);
         aiEvaluationService.evaluateAsync(report.getId());
-        sessionContexts.remove(session.getId());
-        return buildEndResponse(session.getId(), report);
+        return report;
     }
 
     @Override
     public Map<String, Object> getSession(Long userId, Long sessionId) {
         InterviewSession session = requireSession(userId, sessionId);
+        return buildSessionDetail(session);
+    }
+
+    private Map<String, Object> buildSessionDetail(InterviewSession session) {
         Map<String, Object> m = new HashMap<>();
         m.put("sessionId", session.getId());
         m.put("positionCode", session.getPositionCode());
+        Position pos = positionMapper.selectOne(new LambdaQueryWrapper<Position>()
+                .eq(Position::getCode, session.getPositionCode()));
+        m.put("positionName", pos != null ? pos.getName() : session.getPositionCode());
         m.put("sessionStatus", session.getSessionStatus());
+        m.put("inputMode", session.getInputMode());
         m.put("totalQuestions", session.getTotalQuestions());
         m.put("answeredCount", session.getAnsweredCount());
         m.put("durationSeconds", session.getDurationSeconds());
         m.put("startTime", session.getStartTime());
         m.put("endTime", session.getEndTime());
-        int currentOrder = Math.min(session.getAnsweredCount() + 1, Math.max(session.getTotalQuestions(), 1));
-        Question currentQuestion = resolveQuestionForOrder(sessionId, currentOrder);
+        int currentOrder = currentOrderFromDb(session.getId(), session.getTotalQuestions());
+        Question currentQuestion = resolveQuestionForOrder(session.getId(), currentOrder);
         if (currentQuestion != null) {
             m.put("currentQuestion", buildQuestionMeta(currentQuestion, currentOrder));
         }
@@ -305,13 +361,18 @@ public class InterviewServiceImpl implements InterviewService {
         submit.setLanguage(request.getLanguage());
         submit.setSubmitOrder(count.intValue() + 1);
         codingSubmitMapper.insert(submit);
+        String followUpSuggestion = "代码已同步到左侧对话。你可以继续补充算法思路、复杂度和边界条件，面试官会基于这次提交追问。";
+        saveMessage(sessionId, question.getId(), "USER",
+                buildCodingSubmitMessage(submit, request.getCode()),
+                "CODING_SUBMIT",
+                resolveQuestionOrder(sessionId, question.getId()));
         Map<String, Object> m = new HashMap<>();
         m.put("submitId", submit.getId());
         m.put("submitOrder", submit.getSubmitOrder());
         m.put("questionId", question.getId());
         m.put("language", submit.getLanguage());
-        m.put("review", reviewCode(question, request));
-        m.put("followUpSuggestion", "提交后请用文字说明你的算法思路、复杂度和边界条件，面试官会基于代码继续追问。");
+        m.put("message", "代码已提交并同步到对话");
+        m.put("followUpSuggestion", followUpSuggestion);
         m.put("createdAt", submit.getCreatedAt());
         return m;
     }
@@ -337,6 +398,27 @@ public class InterviewServiceImpl implements InterviewService {
         m.put("code", submit.getCodeBody());
         m.put("createdAt", submit.getCreatedAt());
         return m;
+    }
+
+    private String latestCodingContext(Long sessionId, Question question) {
+        if (question == null || !"BEHAVIOR".equals(question.getQuestionType())) {
+            return "";
+        }
+        SessionCodingSubmit submit = codingSubmitMapper.selectOne(new LambdaQueryWrapper<SessionCodingSubmit>()
+                .eq(SessionCodingSubmit::getSessionId, sessionId)
+                .eq(SessionCodingSubmit::getQuestionId, question.getId())
+                .orderByDesc(SessionCodingSubmit::getSubmitOrder)
+                .last("LIMIT 1"));
+        if (submit == null || !StringUtils.hasText(submit.getCodeBody())) {
+            return "";
+        }
+        String code = submit.getCodeBody();
+        if (code.length() > 2000) {
+            code = code.substring(0, 2000) + "\n...";
+        }
+        return "语言：" + submit.getLanguage()
+                + "\n提交次数：" + submit.getSubmitOrder()
+                + "\n代码：\n" + code;
     }
 
     private List<Question> pickQuestions(String positionCode, int count, Long sessionId, Long resumeSnapshotId) {
@@ -433,6 +515,46 @@ public class InterviewServiceImpl implements InterviewService {
                 .eq(InterviewQuestion::getQuestionOrder, order));
     }
 
+    private InterviewSession findActiveSession(Long userId) {
+        return sessionMapper.selectOne(new LambdaQueryWrapper<InterviewSession>()
+                .eq(InterviewSession::getUserId, userId)
+                .eq(InterviewSession::getSessionStatus, "IN_PROGRESS")
+                .orderByDesc(InterviewSession::getStartTime)
+                .last("LIMIT 1"));
+    }
+
+    private SessionContext rebuildSessionContext(InterviewSession session) {
+        SessionContext ctx = new SessionContext();
+        ctx.currentOrder = currentOrderFromDb(session.getId(), session.getTotalQuestions());
+        ctx.followUpCount = countFollowUps(session.getId(), ctx.currentOrder);
+        return ctx;
+    }
+
+    private int currentOrderFromDb(Long sessionId, Integer totalQuestions) {
+        InterviewQuestion current = interviewQuestionMapper.selectOne(new LambdaQueryWrapper<InterviewQuestion>()
+                .eq(InterviewQuestion::getSessionId, sessionId)
+                .eq(InterviewQuestion::getIsAnswered, 0)
+                .orderByAsc(InterviewQuestion::getQuestionOrder)
+                .last("LIMIT 1"));
+        if (current != null && current.getQuestionOrder() != null) {
+            return current.getQuestionOrder();
+        }
+        return Math.max(totalQuestions == null ? 1 : totalQuestions, 1);
+    }
+
+    private int countFollowUps(Long sessionId, int currentOrder) {
+        InterviewQuestion current = getCurrentQuestion(sessionId, currentOrder);
+        if (current == null || current.getQuestionId() == null) {
+            return 0;
+        }
+        Long count = chatMessageMapper.selectCount(new LambdaQueryWrapper<ChatMessage>()
+                .eq(ChatMessage::getSessionId, sessionId)
+                .eq(ChatMessage::getQuestionId, current.getQuestionId())
+                .eq(ChatMessage::getRole, "ASSISTANT")
+                .eq(ChatMessage::getMessageType, "FOLLOW_UP"));
+        return count == null ? 0 : count.intValue();
+    }
+
     private ChatMessage saveMessage(Long sessionId, Long questionId, String role, String content,
                                     String messageType, int questionOrder) {
         ChatMessage msg = new ChatMessage();
@@ -443,6 +565,25 @@ public class InterviewServiceImpl implements InterviewService {
         msg.setMessageType(messageType);
         chatMessageMapper.insert(msg);
         return msg;
+    }
+
+    private int resolveQuestionOrder(Long sessionId, Long questionId) {
+        InterviewQuestion iq = interviewQuestionMapper.selectOne(new LambdaQueryWrapper<InterviewQuestion>()
+                .eq(InterviewQuestion::getSessionId, sessionId)
+                .eq(InterviewQuestion::getQuestionId, questionId)
+                .last("LIMIT 1"));
+        return iq != null && iq.getQuestionOrder() != null ? iq.getQuestionOrder() : 0;
+    }
+
+    private String buildCodingSubmitMessage(SessionCodingSubmit submit, String code) {
+        String codePreview = code;
+        if (codePreview != null && codePreview.length() > 1200) {
+            codePreview = codePreview.substring(0, 1200) + "\n...";
+        }
+        return "**代码提交（第 " + submit.getSubmitOrder() + " 次，" + submit.getLanguage() + "）**\n\n"
+                + "```" + submit.getLanguage() + "\n"
+                + (codePreview == null ? "" : codePreview)
+                + "\n```";
     }
 
     private Map<String, Object> buildMessageMeta(ChatMessage message, Question question, int questionOrder) {
@@ -543,9 +684,15 @@ public class InterviewServiceImpl implements InterviewService {
     private Map<String, Object> buildEndResponse(Long sessionId, EvaluationReport report) {
         Map<String, Object> m = new HashMap<>();
         m.put("sessionId", sessionId);
-        m.put("reportId", report.getId());
-        m.put("reportStatus", report.getReportStatus());
-        m.put("message", "面试已结束，正在生成评估报告，请稍候...");
+        if (report != null) {
+            m.put("reportId", report.getId());
+            m.put("reportStatus", report.getReportStatus());
+            m.put("message", "面试已结束，正在生成评估报告，请稍候...");
+        } else {
+            m.put("reportId", null);
+            m.put("reportStatus", "NOT_GENERATED");
+            m.put("message", "面试已结束，可稍后在首页生成报告");
+        }
         return m;
     }
 

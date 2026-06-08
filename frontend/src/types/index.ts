@@ -80,6 +80,25 @@ export interface InterviewStartResult {
   currentQuestion?: CurrentQuestion
 }
 
+export interface InterviewSessionDetail {
+  active?: boolean
+  sessionId: number
+  positionCode: string
+  positionName: string
+  sessionStatus: 'IN_PROGRESS' | 'COMPLETED'
+  inputMode?: 'TEXT' | 'VOICE'
+  totalQuestions: number
+  answeredCount?: number
+  durationSeconds?: number
+  startTime?: string
+  endTime?: string
+  currentQuestion?: CurrentQuestion
+}
+
+export interface ActiveInterviewResult extends Partial<InterviewSessionDetail> {
+  active: boolean
+}
+
 export interface SseEvent {
   type: 'token' | 'done' | 'next_question' | 'interview_end' | 'error'
   content?: string
@@ -96,10 +115,14 @@ export interface SseEvent {
 }
 
 export interface ResumeStatus {
-  resumeId: number
-  parseStatus: 'PENDING' | 'SUCCESS' | 'FAILED'
+  resumeId?: number
+  parseStatus?: 'PENDING' | 'SUCCESS' | 'FAILED'
   fileName?: string
+  fileUrl?: string
   remark?: string
+  createdAt?: string
+  resumeTextPreview?: string
+  parsedSections?: Record<string, string>
 }
 
 export interface ResumeProject {
@@ -122,7 +145,7 @@ export interface ReportDetail {
   sessionId: number
   positionCode: string
   positionName: string
-  reportStatus: 'GENERATING' | 'COMPLETED' | 'FAILED'
+  reportStatus: 'NOT_GENERATED' | 'GENERATING' | 'COMPLETED' | 'FAILED'
   overallScore?: number
   scores?: ReportScores
   summary?: string

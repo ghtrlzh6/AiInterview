@@ -2,7 +2,14 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as interviewApi from '@/api/interview'
 import { streamSse } from '@/utils/sse'
-import type { ChatMessage, CurrentQuestion, InterviewStartResult, SseEvent } from '@/types'
+import type {
+  ActiveInterviewResult,
+  ChatMessage,
+  CurrentQuestion,
+  InterviewSessionDetail,
+  InterviewStartResult,
+  SseEvent,
+} from '@/types'
 
 export const useInterviewStore = defineStore('interview', () => {
   const sessionId = ref<number | null>(null)
@@ -14,6 +21,7 @@ export const useInterviewStore = defineStore('interview', () => {
   const streamingContent = ref('')
   const inputMode = ref<'TEXT' | 'VOICE'>('TEXT')
   const reportId = ref<number | null>(null)
+  const interviewEnded = ref(false)
   const connectionOk = ref(true)
   const currentQuestion = ref<CurrentQuestion | null>(null)
 
@@ -28,6 +36,7 @@ export const useInterviewStore = defineStore('interview', () => {
     streaming.value = false
     streamingContent.value = ''
     reportId.value = null
+    interviewEnded.value = false
     currentQuestion.value = null
     abortController?.abort()
     abortController = null
@@ -40,6 +49,20 @@ export const useInterviewStore = defineStore('interview', () => {
     totalQuestions.value = res.totalQuestions
     messages.value = [res.firstMessage]
     currentQuestion.value = res.currentQuestion ?? questionFromMessage(res.firstMessage)
+    interviewEnded.value = false
+  }
+
+  function applySessionDetail(detail: InterviewSessionDetail, restoredMessages?: ChatMessage[]) {
+    sessionId.value = detail.sessionId
+    positionCode.value = detail.positionCode
+    positionName.value = detail.positionName
+    totalQuestions.value = detail.totalQuestions
+    inputMode.value = detail.inputMode || inputMode.value
+    currentQuestion.value = detail.currentQuestion ?? null
+    messages.value = restoredMessages || messages.value
+    reportId.value = null
+    interviewEnded.value = detail.sessionStatus === 'COMPLETED'
+    connectionOk.value = true
   }
 
   async function start(
@@ -56,7 +79,23 @@ export const useInterviewStore = defineStore('interview', () => {
     return res
   }
 
-  async function sendMessage(content: string) {
+  async function restore(targetSessionId: number) {
+    const [detail, messageResult] = await Promise.all([
+      interviewApi.getInterview(targetSessionId),
+      interviewApi.getInterviewMessages(targetSessionId),
+    ])
+    applySessionDetail(detail, messageResult.messages || [])
+    return detail
+  }
+
+  async function loadActive() {
+    const active = await interviewApi.getActiveInterview()
+    if (!active.active || !active.sessionId) return null
+    await restore(active.sessionId)
+    return active as ActiveInterviewResult & { sessionId: number }
+  }
+
+  async function sendMessage(content: string, options?: { onInterviewEnd?: () => void }) {
     if (!sessionId.value || !content.trim()) return
 
     messages.value.push({
@@ -98,7 +137,13 @@ export const useInterviewStore = defineStore('interview', () => {
             applyQuestionEvent(event)
           } else if (event.type === 'interview_end') {
             streaming.value = false
+            if (event.content) {
+              messages.value[idx].content = event.content
+              messages.value[idx].messageType = 'CLOSING'
+            }
             reportId.value = event.reportId ?? null
+            interviewEnded.value = true
+            options?.onInterviewEnd?.()
           } else if (event.type === 'error') {
             connectionOk.value = false
             messages.value[idx].content += `\n[错误] ${event.message || event.content || '未知错误'}`
@@ -114,20 +159,29 @@ export const useInterviewStore = defineStore('interview', () => {
     }
   }
 
-  async function end() {
+  async function end(generateReport = true) {
     if (!sessionId.value) return null
-    const res = await interviewApi.endInterview(sessionId.value)
-    reportId.value = res.reportId
+    const res = await interviewApi.endInterviewWithOptions(sessionId.value, { generateReport })
+    reportId.value = res.reportId || null
+    interviewEnded.value = true
+    return res
+  }
+
+  async function generateReportForSession(targetSessionId: number) {
+    const res = await interviewApi.generateReport(targetSessionId)
+    reportId.value = res.reportId || null
     return res
   }
 
   async function submitCoding(language: string, code: string) {
     if (!sessionId.value || !currentQuestion.value) return null
-    return interviewApi.submitCoding(sessionId.value, {
+    const res = await interviewApi.submitCoding(sessionId.value, {
       questionId: currentQuestion.value.questionId,
       language,
       code,
     })
+    if (res && sessionId.value) await restore(sessionId.value)
+    return res
   }
 
   function applyQuestionEvent(event: SseEvent) {
@@ -165,12 +219,16 @@ export const useInterviewStore = defineStore('interview', () => {
     streamingContent,
     inputMode,
     reportId,
+    interviewEnded,
     connectionOk,
     currentQuestion,
     reset,
     start,
+    restore,
+    loadActive,
     sendMessage,
     end,
+    generateReportForSession,
     submitCoding,
   }
 })

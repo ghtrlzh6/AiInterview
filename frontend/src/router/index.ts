@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import * as interviewApi from '@/api/interview'
 import { getAccessToken } from '@/utils/request'
 
 const routes: RouteRecordRaw[] = [
@@ -18,11 +19,13 @@ const routes: RouteRecordRaw[] = [
         path: 'interview/:sessionId',
         name: 'interview-room',
         component: () => import('@/pages/interview/InterviewRoomPage.vue'),
+        meta: { allowsActiveInterview: true },
       },
       {
         path: 'interview/:sessionId/end',
         name: 'interview-end',
         component: () => import('@/pages/interview/InterviewEndPage.vue'),
+        meta: { allowsActiveInterview: true, hideInterviewChrome: true },
       },
       { path: 'reports', name: 'reports', component: () => import('@/pages/report/ReportListPage.vue') },
       {
@@ -115,6 +118,17 @@ router.beforeEach(async (to, _from, next) => {
     if (!hasToken) return next({ name: 'login' })
     if (!auth.userInfo?.role) await auth.fetchProfile()
     if (!auth.isAdmin) return next({ name: 'home' })
+  }
+
+  if (to.meta.requiresAuth && hasToken && !to.meta.allowsActiveInterview) {
+    try {
+      const active = await interviewApi.getActiveInterview()
+      if (active.active && active.sessionId) {
+        return next({ name: 'interview-room', params: { sessionId: String(active.sessionId) } })
+      }
+    } catch {
+      /* allow navigation if active-session lookup is temporarily unavailable */
+    }
   }
 
   next()

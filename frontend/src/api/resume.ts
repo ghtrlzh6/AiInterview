@@ -1,5 +1,6 @@
 import request from '@/utils/request'
 import type { ResumeProject, ResumeStatus } from '@/types'
+export type { ResumeStatus } from '@/types'
 
 export type ResumeParseStatus = 'PENDING' | 'SUCCESS' | 'FAILED'
 

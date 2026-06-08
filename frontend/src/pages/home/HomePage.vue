@@ -2,7 +2,7 @@
   <div class="max-w-5xl mx-auto space-y-8">
     <section class="rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white p-8 shadow-lg">
       <h1 class="text-3xl font-bold mb-2">
-        你好，{{ auth.userInfo?.nickname || '同学' }} 👋
+        你好，{{ auth.userInfo?.nickname || '同学' }}
       </h1>
       <p class="text-indigo-100 mb-6">用 AI 模拟真实面试，多维度反馈助你快速成长</p>
       <el-button size="large" type="warning" @click="router.push('/interview/select')">
@@ -83,15 +83,32 @@
         <el-table-column prop="overallScore" label="得分" width="80">
           <template #default="{ row }">{{ row.overallScore ?? '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="120">
+        <el-table-column label="操作" width="150">
           <template #default="{ row }">
             <el-button
-              v-if="row.reportId"
+              v-if="row.sessionStatus === 'IN_PROGRESS'"
+              type="primary"
+              link
+              @click="router.push(`/interview/${row.sessionId}`)"
+            >
+              继续面试
+            </el-button>
+            <el-button
+              v-else-if="row.reportId"
               type="primary"
               link
               @click="router.push(`/reports/${row.reportId}`)"
             >
               查看报告
+            </el-button>
+            <el-button
+              v-else-if="row.canGenerateReport"
+              type="primary"
+              link
+              :loading="generatingSessionId === row.sessionId"
+              @click="generateReport(row.sessionId)"
+            >
+              生成报告
             </el-button>
           </template>
         </el-table-column>
@@ -103,7 +120,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
+import { useInterviewStore } from '@/stores/interview'
 import * as userApi from '@/api/user'
 import * as reportApi from '@/api/report'
 import * as growthApi from '@/api/growth'
@@ -111,8 +130,10 @@ import type { InterviewHistoryItem } from '@/api/user'
 
 const auth = useAuthStore()
 const router = useRouter()
+const interview = useInterviewStore()
 const loading = ref(false)
 const statsLoading = ref(false)
+const generatingSessionId = ref<number | null>(null)
 const history = ref<InterviewHistoryItem[]>([])
 
 const stats = ref({
@@ -186,6 +207,25 @@ async function loadHistory() {
     history.value = []
   } finally {
     loading.value = false
+  }
+}
+
+async function generateReport(sessionId: number) {
+  generatingSessionId.value = sessionId
+  try {
+    const res = await interview.generateReportForSession(sessionId)
+    if (res.reportId) {
+      ElMessage.success('已开始生成报告')
+      router.push({
+        name: 'interview-end',
+        params: { sessionId: String(sessionId) },
+        query: { reportId: String(res.reportId) },
+      })
+    } else {
+      await loadHistory()
+    }
+  } finally {
+    generatingSessionId.value = null
   }
 }
 

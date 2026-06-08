@@ -1,5 +1,5 @@
 import request from '@/utils/request'
-import type { ChatMessage, InterviewStartResult } from '@/types'
+import type { ActiveInterviewResult, ChatMessage, InterviewSessionDetail, InterviewStartResult } from '@/types'
 
 export interface StartInterviewPayload {
   positionCode: string
@@ -12,15 +12,33 @@ export function startInterview(data: StartInterviewPayload) {
   return request.post<unknown, InterviewStartResult>('/interviews/start', data)
 }
 
+export function getActiveInterview() {
+  return request.get<unknown, ActiveInterviewResult>('/interviews/active')
+}
+
 export function endInterview(sessionId: number) {
   return request.post<
     unknown,
-    { sessionId: number; reportId: number; reportStatus: string; message: string }
-  >(`/interviews/${sessionId}/end`)
+    { sessionId: number; reportId?: number; reportStatus: string; message: string }
+  >(`/interviews/${sessionId}/end`, { generateReport: true })
+}
+
+export function endInterviewWithOptions(sessionId: number, data: { generateReport: boolean }) {
+  return request.post<
+    unknown,
+    { sessionId: number; reportId?: number; reportStatus: string; message: string }
+  >(`/interviews/${sessionId}/end`, data)
+}
+
+export function generateReport(sessionId: number) {
+  return request.post<
+    unknown,
+    { sessionId: number; reportId?: number; reportStatus: string; message: string }
+  >(`/interviews/${sessionId}/report`)
 }
 
 export function getInterview(sessionId: number) {
-  return request.get<unknown, Record<string, unknown>>(`/interviews/${sessionId}`)
+  return request.get<unknown, InterviewSessionDetail>(`/interviews/${sessionId}`)
 }
 
 export function getInterviewMessages(sessionId: number) {
@@ -40,7 +58,8 @@ export function submitCoding(
       submitOrder: number
       questionId: number
       language: string
-      review: string
+      message?: string
+      review?: string
       followUpSuggestion: string
       createdAt?: string
     }

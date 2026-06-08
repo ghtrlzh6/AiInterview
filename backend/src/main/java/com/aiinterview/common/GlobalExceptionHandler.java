@@ -9,6 +9,8 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 
 import java.util.HashMap;
 import java.util.List;
@@ -47,6 +49,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public Result<Void> handleBadRequest(HttpMessageNotReadableException e) {
         return Result.fail(400, "请求体格式错误");
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public Result<Void> handleMaxUploadSize(MaxUploadSizeExceededException e) {
+        return Result.fail(400, "Upload file cannot exceed 10MB");
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    public Result<Void> handleMultipart(MultipartException e) {
+        return Result.fail(400, "Invalid upload request, please choose a PDF file again");
     }
 
     @ExceptionHandler(Exception.class)

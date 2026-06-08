@@ -2,6 +2,7 @@ package com.aiinterview.controller;
 
 import com.aiinterview.common.Result;
 import com.aiinterview.dto.interview.CodingSubmitRequest;
+import com.aiinterview.dto.interview.EndInterviewRequest;
 import com.aiinterview.dto.interview.SendMessageRequest;
 import com.aiinterview.dto.interview.StartInterviewRequest;
 import com.aiinterview.service.InterviewService;
@@ -24,6 +25,12 @@ public class InterviewController {
 
     private final InterviewService interviewService;
 
+    @Operation(summary = "当前进行中的面试")
+    @GetMapping("/active")
+    public Result<Map<String, Object>> active() {
+        return Result.success(interviewService.getActiveSession(SecurityUtils.currentUserId()));
+    }
+
     @Operation(summary = "开始面试")
     @PostMapping("/start")
     public Result<Map<String, Object>> start(@Valid @RequestBody StartInterviewRequest request) {
@@ -38,8 +45,19 @@ public class InterviewController {
 
     @Operation(summary = "结束面试")
     @PostMapping("/{sessionId}/end")
-    public Result<Map<String, Object>> end(@PathVariable Long sessionId) {
-        return Result.success(interviewService.end(SecurityUtils.currentUserId(), sessionId));
+    public Result<Map<String, Object>> end(
+            @PathVariable Long sessionId,
+            @RequestBody(required = false) EndInterviewRequest request) {
+        return Result.success(interviewService.end(
+                SecurityUtils.currentUserId(),
+                sessionId,
+                request != null ? request : new EndInterviewRequest()));
+    }
+
+    @Operation(summary = "生成面试报告")
+    @PostMapping("/{sessionId}/report")
+    public Result<Map<String, Object>> generateReport(@PathVariable Long sessionId) {
+        return Result.success(interviewService.generateReport(SecurityUtils.currentUserId(), sessionId));
     }
 
     @Operation(summary = "会话详情")

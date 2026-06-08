@@ -20,11 +20,13 @@ export interface InterviewHistoryItem {
   positionCode: string
   positionName: string
   sessionStatus: string
+  reportStatus?: string
   overallScore?: number
   durationSeconds?: number
   startTime: string
   endTime?: string
   reportId?: number
+  canGenerateReport?: boolean
 }
 
 export function getMe() {

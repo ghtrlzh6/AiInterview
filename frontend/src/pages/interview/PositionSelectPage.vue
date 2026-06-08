@@ -124,6 +124,12 @@ const resumeTagType = computed(() => {
 
 onMounted(async () => {
   try {
+    const active = await interview.loadActive()
+    if (active?.sessionId) {
+      ElMessage.warning('你还有未完成的面试，请先继续或结束当前面试')
+      router.replace({ name: 'interview-room', params: { sessionId: String(active.sessionId) } })
+      return
+    }
     positions.value = await positionApi.listPositions()
   } finally {
     loading.value = false
@@ -141,7 +147,13 @@ async function startInterview() {
     })
     router.push({ name: 'interview-room', params: { sessionId: String(res.sessionId) } })
   } catch {
-    ElMessage.error('创建面试失败')
+    const active = await interview.loadActive()
+    if (active?.sessionId) {
+      ElMessage.warning('你还有未完成的面试，请先继续或结束当前面试')
+      router.replace({ name: "interview-room", params: { sessionId: String(active.sessionId) } })
+    } else {
+      ElMessage.error('创建面试失败')
+    }
   } finally {
     starting.value = false
   }
@@ -156,9 +168,13 @@ async function handleResumeFile(file: UploadFile) {
     const form = new FormData()
     form.append('file', file.raw)
     resumeStatus.value = await resumeApi.uploadResume(form)
+    if (!resumeStatus.value.resumeId) {
+      ElMessage.error('简历上传失败，可继续普通面试')
+      return
+    }
     await pollResume(resumeStatus.value.resumeId)
   } catch {
-    ElMessage.error('简历上传失败')
+    /* request interceptor already shows the server error */
   } finally {
     resumeUploading.value = false
   }
