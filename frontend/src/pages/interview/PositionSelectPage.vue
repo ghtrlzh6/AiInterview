@@ -22,26 +22,42 @@
       <el-divider />
       <el-form-item label="简历项目深挖">
         <div class="w-full space-y-3">
+          <div v-loading="resumeLoading" class="rounded border border-slate-200 bg-slate-50 p-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="text-sm text-slate-600">
+                <template v-if="resumeStatus?.resumeId">
+                  <span class="font-medium text-slate-800">{{ resumeStatus.fileName || '个人档案简历' }}</span>
+                  <el-tag size="small" class="ml-2" :type="resumeTagType">{{ resumeStatusLabel }}</el-tag>
+                  <span v-if="resumeStatus.remark" class="ml-2 text-red-500">{{ resumeStatus.remark }}</span>
+                </template>
+                <template v-else>
+                  还没有可用的个人简历
+                </template>
+              </div>
+              <el-button link type="primary" @click="router.push('/profile')">去个人档案</el-button>
+            </div>
+            <el-radio-group
+              v-if="resumeStatus?.parseStatus === 'SUCCESS' && resumeStatus.resumeId"
+              v-model="selectedResumeId"
+              class="resume-list mt-3"
+            >
+              <el-radio :value="0">不使用简历</el-radio>
+              <el-radio :value="resumeStatus.resumeId">
+                使用个人档案简历
+              </el-radio>
+            </el-radio-group>
+          </div>
+
           <el-upload
             :auto-upload="false"
             :show-file-list="false"
             accept="application/pdf"
             :on-change="handleResumeFile"
           >
-            <el-button :icon="Upload" :loading="resumeUploading">上传 PDF 简历</el-button>
+            <el-button :icon="Upload" :loading="resumeUploading">临时上传 PDF 简历</el-button>
           </el-upload>
-          <div v-if="resumeStatus" class="text-sm text-slate-600">
-            {{ resumeStatus.fileName || '简历' }}：
-            <el-tag size="small" :type="resumeTagType">{{ resumeStatus.parseStatus }}</el-tag>
-            <span v-if="resumeStatus.remark" class="ml-2 text-red-500">{{ resumeStatus.remark }}</span>
-          </div>
-          <el-radio-group v-if="resumeProjects.length" v-model="selectedResumeId" class="resume-list">
-            <el-radio :value="0">不使用简历</el-radio>
-            <el-radio :value="resumeStatus?.resumeId || 0">
-              使用已解析简历（{{ resumeProjects[0]?.projectName }}）
-            </el-radio>
-          </el-radio-group>
           <div v-if="resumeProjects.length" class="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+            <div class="font-medium text-slate-800 mb-2">识别到的项目经历</div>
             <div v-for="project in resumeProjects" :key="project.id" class="mb-2 last:mb-0">
               <div class="font-medium text-slate-800">{{ project.projectName }}</div>
               <div class="line-clamp-2">{{ project.summaryMd }}</div>
@@ -111,6 +127,7 @@ const starting = ref(false)
 const positions = ref<Position[]>([])
 const selected = ref('')
 const questionCount = ref(8)
+const resumeLoading = ref(false)
 const resumeUploading = ref(false)
 const resumeStatus = ref<ResumeStatus | null>(null)
 const resumeProjects = ref<ResumeProject[]>([])
@@ -122,6 +139,14 @@ const resumeTagType = computed(() => {
   return 'warning'
 })
 
+const resumeStatusLabel = computed(() => {
+  const status = resumeStatus.value?.parseStatus
+  if (status === 'SUCCESS') return '解析成功'
+  if (status === 'FAILED') return '解析失败'
+  if (status === 'PENDING') return '解析中'
+  return '未上传'
+})
+
 onMounted(async () => {
   try {
     const active = await interview.loadActive()
@@ -130,11 +155,36 @@ onMounted(async () => {
       router.replace({ name: 'interview-room', params: { sessionId: String(active.sessionId) } })
       return
     }
-    positions.value = await positionApi.listPositions()
+    await Promise.all([loadPositions(), loadLatestResume()])
   } finally {
     loading.value = false
   }
 })
+
+async function loadPositions() {
+  positions.value = await positionApi.listPositions()
+}
+
+async function loadLatestResume() {
+  resumeLoading.value = true
+  resumeProjects.value = []
+  selectedResumeId.value = 0
+  try {
+    const latest = await resumeApi.getLatestResume()
+    if (!latest.resumeId) {
+      resumeStatus.value = null
+      return
+    }
+    resumeStatus.value = latest
+    if (latest.parseStatus === 'SUCCESS') {
+      await applyParsedResume(latest.resumeId)
+    } else if (latest.parseStatus === 'PENDING') {
+      await pollResume(latest.resumeId)
+    }
+  } finally {
+    resumeLoading.value = false
+  }
+}
 
 async function startInterview() {
   if (!selected.value) return
@@ -184,8 +234,7 @@ async function pollResume(resumeId: number) {
   for (let i = 0; i < 20; i += 1) {
     resumeStatus.value = await resumeApi.getResumeStatus(resumeId)
     if (resumeStatus.value.parseStatus === 'SUCCESS') {
-      resumeProjects.value = await resumeApi.listResumeProjects(resumeId)
-      selectedResumeId.value = resumeId
+      await applyParsedResume(resumeId)
       ElMessage.success('简历解析完成')
       return
     }
@@ -196,6 +245,11 @@ async function pollResume(resumeId: number) {
     await new Promise((resolve) => window.setTimeout(resolve, 1200))
   }
   ElMessage.warning('简历仍在解析中，可稍后刷新或直接开始普通面试')
+}
+
+async function applyParsedResume(resumeId: number) {
+  resumeProjects.value = await resumeApi.listResumeProjects(resumeId)
+  selectedResumeId.value = resumeId
 }
 </script>
 
