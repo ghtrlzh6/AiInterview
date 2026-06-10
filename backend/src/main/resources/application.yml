@@ -54,11 +54,11 @@ ai:
   asr:
     provider: ${ASR_PROVIDER:web-speech}
   xunfei:
-    enabled: ${XUNFEI_ENABLED:false}
-    app-id: ${XUNFEI_APP_ID:}
-    api-key: ${XUNFEI_API_KEY:}
-    api-secret: ${XUNFEI_API_SECRET:}
-    asr-url: ${XUNFEI_ASR_URL:}
+    enabled: true
+    app-id: b99ba67b
+    api-key: d13a30015ef51f76a81ba802d0c7bdb6
+    api-secret: M2Y0NDg2ZGQ5NjZlYWQxYzI5NGU1ZjI3
+    asr-url: wss://rtasr.xfyun.cn/v1/ws
   chroma:
     host: ${CHROMA_HOST:localhost}
     port: 8000
