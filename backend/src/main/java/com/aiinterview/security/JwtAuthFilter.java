@@ -7,8 +7,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -20,15 +18,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 
-    private static final String BLACKLIST_PREFIX = "jwt:blacklist:";
-
     private final JwtUtil jwtUtil;
-    private final StringRedisTemplate redisTemplate;
+    private final JwtTokenBlacklist tokenBlacklist;
 
     @Override
     protected void doFilterInternal(
@@ -63,11 +58,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     private boolean isTokenBlacklisted(String token) {
-        try {
-            return Boolean.TRUE.equals(redisTemplate.hasKey(BLACKLIST_PREFIX + token));
-        } catch (Exception e) {
-            log.warn("Redis unavailable, skip JWT blacklist check: {}", e.getMessage());
-            return false;
-        }
+        return tokenBlacklist.contains(token);
     }
 }

@@ -11,6 +11,9 @@ public interface LlmService {
 
     String chat(List<ChatMessage> messages);
 
+    /** 要求模型以 JSON 对象格式回复（DeepSeek response_format=json_object） */
+    String chatJson(List<ChatMessage> messages);
+
     void chatStream(List<ChatMessage> messages, Consumer<String> onToken);
 
     List<Double> embed(String text);

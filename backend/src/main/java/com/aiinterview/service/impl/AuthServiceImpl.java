@@ -9,26 +9,23 @@ import com.aiinterview.security.JwtUtil;
 import com.aiinterview.service.AuthService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.jsonwebtoken.Claims;
+import com.aiinterview.security.JwtTokenBlacklist;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
-    private static final String BLACKLIST_PREFIX = "jwt:blacklist:";
-
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
-    private final StringRedisTemplate redisTemplate;
+    private final JwtTokenBlacklist tokenBlacklist;
 
     @Override
     public Map<String, Object> register(RegisterRequest request) {
@@ -87,7 +84,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void logout(String token) {
         if (StringUtils.hasText(token)) {
-            redisTemplate.opsForValue().set(BLACKLIST_PREFIX + token, "1", jwtUtil.getExpireSeconds(), TimeUnit.SECONDS);
+            tokenBlacklist.add(token, jwtUtil.getExpireSeconds());
         }
     }
 

@@ -6,6 +6,7 @@ import com.aiinterview.entity.KbArticle;
 import com.aiinterview.entity.KbNode;
 import com.aiinterview.mapper.KbArticleMapper;
 import com.aiinterview.mapper.KbNodeMapper;
+import com.aiinterview.service.ai.RagService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Data;
@@ -26,6 +27,7 @@ public class AdminKbController {
 
     private final KbNodeMapper kbNodeMapper;
     private final KbArticleMapper kbArticleMapper;
+    private final RagService ragService;
 
     @GetMapping("/nodes")
     public Result<List<Map<String, Object>>> listNodes(
@@ -107,25 +109,23 @@ public class AdminKbController {
     public Result<Map<String, Object>> vectorize(@PathVariable Long articleId) {
         KbArticle article = kbArticleMapper.selectById(articleId);
         if (article == null) throw BusinessException.notFound("文章不存在");
+        RagService.VectorizeResult result = ragService.vectorizeArticle(
+                article.getId(), article.getKbNodeId(), article.getTitle(), article.getBodyMarkdown());
         article.setIsVectorized(1);
-        article.setChromaIds(List.of("mock-chunk-1", "mock-chunk-2"));
+        article.setChromaIds(result.chromaIds());
         kbArticleMapper.updateById(article);
         Map<String, Object> m = new HashMap<>();
         m.put("articleId", articleId);
-        m.put("chunksCount", 2);
-        m.put("message", "向量化完成（模拟），metadata 写入 kb_node_id / code_path");
+        m.put("chunksCount", result.chunksCount());
+        m.put("mock", result.mock());
+        m.put("message", result.message());
         return Result.success(m);
     }
 
     @PostMapping("/vectorize-pending-batch")
     public Result<Map<String, Object>> vectorizeBatch() {
-        List<KbArticle> pending = kbArticleMapper.selectList(new LambdaQueryWrapper<KbArticle>()
-                .eq(KbArticle::getIsVectorized, 0));
-        for (KbArticle a : pending) {
-            a.setIsVectorized(1);
-            kbArticleMapper.updateById(a);
-        }
-        return Result.success(Map.of("processed", pending.size()));
+        int processed = ragService.vectorizePendingBatch();
+        return Result.success(Map.of("processed", processed, "chromaAvailable", ragService.isAvailable()));
     }
 
     private Map<String, Object> nodeMap(KbNode n) {

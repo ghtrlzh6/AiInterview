@@ -4,6 +4,8 @@ import com.aiinterview.common.BusinessException;
 import com.aiinterview.common.Result;
 import com.aiinterview.entity.SystemConfig;
 import com.aiinterview.mapper.SystemConfigMapper;
+import com.aiinterview.service.PromptService;
+import com.aiinterview.service.SystemConfigService;
 import com.aiinterview.util.PromptTemplateUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,6 +27,8 @@ import java.util.stream.Collectors;
 public class AdminPromptController {
 
     private final SystemConfigMapper configMapper;
+    private final SystemConfigService systemConfigService;
+    private final PromptService promptService;
     private final ResourceLoader resourceLoader;
 
     @GetMapping
@@ -55,6 +59,8 @@ public class AdminPromptController {
         cfg.setConfigValue(req.value);
         if (req.description != null) cfg.setDescription(req.description);
         configMapper.updateById(cfg);
+        systemConfigService.set(cfg.getConfigKey(), req.value);
+        promptService.clearCache();
         return Result.success();
     }
 

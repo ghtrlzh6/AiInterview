@@ -6,8 +6,10 @@ import com.aiinterview.entity.Question;
 import com.aiinterview.entity.SystemConfig;
 import com.aiinterview.mapper.QuestionMapper;
 import com.aiinterview.mapper.SystemConfigMapper;
+import com.aiinterview.service.PromptService;
 import com.aiinterview.service.SystemConfigService;
 import com.aiinterview.service.ai.LlmService;
+import com.aiinterview.service.ai.RagService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Data;
@@ -28,6 +30,8 @@ public class AdminAiController {
     private final SystemConfigService systemConfigService;
     private final QuestionMapper questionMapper;
     private final LlmService llmService;
+    private final RagService ragService;
+    private final PromptService promptService;
 
     @GetMapping("/ai-config")
     public Result<List<Map<String, Object>>> getAiConfig() {
@@ -52,6 +56,9 @@ public class AdminAiController {
             updates.put(item.key, item.value);
         }
         systemConfigService.setBatch(updates);
+        if (updates.keySet().stream().anyMatch(k -> k.startsWith("prompt."))) {
+            promptService.clearCache();
+        }
         return Result.success();
     }
 
@@ -81,9 +88,11 @@ public class AdminAiController {
             q.setDifficulty(req.difficulty != null ? req.difficulty : 2);
             q.setTopic(req.seedTopic != null ? req.seedTopic : "AI生成");
             q.setSource("AI_TECH_SCENARIO");
+            String ragContext = ragService.buildContext(req.seedTopic, req.positionCode, 2);
+            String userPrompt = "生成一道" + req.questionType + "面试题，岗位：" + req.positionCode + "，主题：" + req.seedTopic
+                    + (StringUtils.hasText(ragContext) ? "\n" + ragContext : "");
             String title = llmService.isAvailable()
-                    ? llmService.chat(List.of(new LlmService.ChatMessage("user",
-                    "生成一道" + req.questionType + "面试题，主题：" + req.seedTopic)))
+                    ? llmService.chat(List.of(new LlmService.ChatMessage("user", userPrompt)))
                     : "（模拟）请说明 " + req.seedTopic + " 的核心原理与应用场景";
             q.setTitle(title);
             Map<String, Object> meta = new HashMap<>();

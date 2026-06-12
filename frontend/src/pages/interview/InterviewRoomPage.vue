@@ -161,6 +161,7 @@ function renderMarkdown(text: string) {
 const questionTypeMeta = computed(() => {
   const type = interview.currentQuestion?.questionType
   const map = {
+    SELF_INTRO: { label: '自我介绍', type: 'info' },
     TECH_KNOWLEDGE: { label: '技术基础', type: 'primary' },
     SCENARIO: { label: '场景设计', type: 'warning' },
     PROJECT_DEEP: { label: '项目深挖', type: 'success' },

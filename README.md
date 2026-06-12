@@ -14,7 +14,7 @@ AiInterview/
 ├── sql/              # 数据库建表与种子数据
 │   └── init.sql      # 完整 DDL + DML（19 张表）
 ├── docs/             # 设计文档（架构/API/数据库/开发计划）
-├── docker-compose.yml # 本地 MySQL + Redis + Chroma
+├── docker-compose.yml # 本地 MySQL + Chroma（可选）
 └── .env.example      # 环境变量模板（远端/密钥留空）
 ```
 
@@ -29,7 +29,7 @@ AiInterview/
 | JDK | 21 | 后端编译运行 |
 | Maven | 3.9+ | 后端构建 |
 | Node.js | 18+ | 前端构建 |
-| Docker | 可选 | 一键启动 MySQL/Redis/Chroma |
+| Docker | 可选 | 一键启动 MySQL/Chroma |
 
 ### 第一步：启动基础设施
 
@@ -46,8 +46,6 @@ docker-compose up -d
 
 1. 在远端 MySQL 执行 `sql/init.sql`
 2. 复制 `.env.example` 为 `.env`，填写 `DB_HOST`、`DB_USERNAME`、`DB_PASSWORD`
-3. 启动 Redis（登出黑名单功能需要）
-
 ### 第二步：启动后端
 
 ```bash
@@ -80,6 +78,7 @@ npm run dev
 | 角色 | 用户名 | 密码 | 说明 |
 |------|--------|------|------|
 | 管理员 | `admin` | `admin123456` | 可访问 `/admin` 管理后台 |
+| 演示学生 | `demo_student` | `demo123456` | 预置 3 次 Java 面试历史，可查看成长曲线 |
 | 普通用户 | 自行注册 | — | 注册页创建 |
 
 ---
@@ -90,8 +89,8 @@ npm run dev
 
 1. **注册 / 登录** → 首页仪表盘
 2. **选择岗位** → 四岗位可选（Java 后端 / Web 前端 / Python 算法 / 游戏客户端）
-3. **开始模拟面试** → AI 面试官逐题提问，支持文字 / 语音输入
-4. **对话交互** → AI 可追问（每题最多 2 次），答完自动推进下一题
+3. **开始模拟面试** → AI 面试官先寒暄并请你自我介绍，再按「技术基础 → 场景设计 → 项目深挖 → 手撕代码」的顺序循序渐进提问，难度由易到难，支持文字 / 语音输入
+4. **对话交互** → 面试官会先对你的回答给出一句自然反馈（认可或点出不足），再决定追问（每题最多 2 次）或自然过渡到下一题；回复以打字机效果流式呈现
 5. **结束面试** → 异步生成评估报告（约 10~60 秒）
 6. **查看报告** → 综合得分、五维雷达图、逐题点评、改进建议
 7. **成长曲线** → 历次面试能力变化折线图
@@ -108,9 +107,9 @@ npm run dev
 
 ### 未配置 DeepSeek API 时
 
-- 面试对话：使用内置模拟回复（规则引擎 + 模板），流程可完整跑通
-- 评估报告：基于规则生成模拟分数与点评
-- 配置 API Key 后（环境变量 `LLM_API_KEY` 或管理后台）自动切换为真实 LLM
+- 面试对话：使用内置模拟面试官。会根据回答长度与是否已追问，给出"认可 + 适度追问 / 自然过渡"的连贯回复，体验接近真实流程
+- 评估报告：使用**启发式评分**——依据回答长度与对参考答案关键词的覆盖度估算各维度分数，"答得充分"明显高于"敷衍/不答"，空答得低分（不再是纯随机）
+- 配置 API Key 后（环境变量 `LLM_API_KEY` 或管理后台）自动切换为真实 LLM，面试官与评分均由大模型生成
 
 ---
 
@@ -220,7 +219,7 @@ Authorization: Bearer <accessToken>
     ↓ HTTP / SSE
 Spring Boot 后端
     ├── MySQL 8.0（持久化）
-    ├── Redis 7（Token 黑名单 / 缓存）
+    ├── 内存 Token 黑名单（登出失效，无需 Redis）
     ├── Chroma（RAG 向量检索，可选）
     └── DeepSeek API（LLM，Key 留空时降级为模拟）
 ```
@@ -263,14 +262,19 @@ service/ai/     → AI 能力独立封装（LlmService / RagService / AiEvaluati
 
 ```
 选岗位 → POST /interviews/start
-  → 按难度比例抽题（TECH/SCENARIO/PROJECT/BEHAVIOR）
+  → 自我介绍开场（SELF_INTRO，合成题，不计技术分）
+  → 按真实面试节奏排序抽题：TECH_KNOWLEDGE → SCENARIO → PROJECT_DEEP → BEHAVIOR(手撕)，组内难度升序
   → 创建 session + 题目序列
-  → LLM 生成开场白 + 第一题
+  → 面试官生成寒暄开场白 + 自我介绍请求
   → 用户回答 → POST /message（SSE 流式）
-  → FollowUpStrategy 判断：追问 / 下一题 / 结束
+  → FollowUpStrategy 携带最近对话历史决策：
+      先输出一句对回答的自然反馈，再 follow_up / next_question / end
+  → 反馈逐块流式推送（打字机效果），过渡时把下一题追加到同一条消息
   → POST /end → 触发异步评估
   → 前端轮询 GET /reports/{id}
 ```
+
+> 题目类型：`SELF_INTRO`(自我介绍) / `TECH_KNOWLEDGE`(技术基础) / `SCENARIO`(场景设计) / `PROJECT_DEEP`(项目深挖) / `BEHAVIOR`(手撕代码)。
 
 #### 2. SSE 流式对话
 
@@ -370,7 +374,6 @@ cd frontend && npm run build
 | `DB_HOST` | 是 | MySQL 地址 | 本地 `localhost` |
 | `DB_USERNAME` | 是 | 数据库用户 | `root` |
 | `DB_PASSWORD` | 是 | 数据库密码 | 见 `.env.example` |
-| `REDIS_HOST` | 是 | Redis 地址 | 本地 `localhost` |
 | `JWT_SECRET` | 是 | JWT 签名密钥 | 有默认值 |
 | `LLM_API_KEY` | 否 | DeepSeek API Key | **留空，使用模拟** |
 | `CHROMA_HOST` | 否 | 向量库地址 | 可选 |
@@ -397,20 +400,22 @@ cd frontend && npm run build
 
 - [x] 远端 MySQL / Nginx 部署文档与配置模板（见 `docs/deployment.md`）
 - [x] 管理后台学习资源管理页 + AI 配置热更新与连通性测试
+- [x] 报告逐题点评、内嵌推荐资源、公开分享页（`/share/:token`）
+- [x] RAG 向量化服务（Chroma + Embedding，Chroma 未启动时自动降级）
+- [x] 语音输入 Web Speech 失败时降级调用 `/asr/convert`
+- [x] 四岗位差异化 Prompt 接入面试追问决策
+- [x] 面试体验重构：对话式面试官（先反馈再决策）、携带对话历史、真打字机流式、自我介绍开场、循序渐进出题、启发式模拟评分
+- [x] `demo_student` 演示账号与成长曲线历史数据
 - [ ] 实际上线租服务器部署（按 deployment.md 执行）
-- [ ] DeepSeek API Key 配置（待提供密钥，可在管理后台填写）
-- [ ] Chroma RAG 向量化（接口已预留，待接真实 Embedding）
-- [ ] 讯飞 ASR 备用方案（主方案为浏览器 Web Speech API）
+- [ ] DeepSeek API Key 配置（待提供密钥，可在管理后台填写；配置后评估/出题/RAG 自动切换真实模式）
+- [x] 移除 Redis 依赖，登出黑名单改为进程内内存存储（单机部署足够，重启后黑名单清空）
 
 ---
 
 ## 常见问题
 
-**Q: 后端启动报 Redis 连接失败？**  
-A: 启动 Redis：`docker-compose up -d redis` 或本地 `redis-server`
-
 **Q: 面试 AI 回复是固定模板？**  
-A: 未配置 `LLM_API_KEY` 时使用模拟模式。在管理后台 AI 配置页填入 Key 即可切换真实 LLM
+A: 未配置 `LLM_API_KEY` 时使用内置模拟面试官（会对回答给出自然反馈并按节奏推进，非死板模板）。在管理后台 AI 配置页填入 Key 即可切换为真实大模型，对话与评分会更贴合回答内容
 
 **Q: 如何重新初始化数据库？**  
 A: `docker-compose down -v && docker-compose up -d`（会清空数据并重新执行 init.sql）

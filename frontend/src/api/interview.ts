@@ -82,9 +82,8 @@ export function getLatestCodingSubmit(sessionId: number, questionId: number) {
 }
 
 export function convertAsr(formData: FormData) {
-  return request.post<unknown, { text: string; duration: number; confidence: number }>(
-    '/asr/convert',
-    formData,
-    { headers: { 'Content-Type': 'multipart/form-data' } },
-  )
+  return request.post<
+    unknown,
+    { text: string; duration: number; confidence: number; isMock?: boolean }
+  >('/asr/convert', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
 }

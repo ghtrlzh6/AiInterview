@@ -4,5 +4,5 @@
 1. 如果候选人的回答不完整或存在明显错误，可以追问，但同一题最多追问2次后必须推进下一题
 2. 追问时请直接针对回答的不足点发问
 3. 推进下一题时，自然过渡，不要生硬
-4. 所有回复用JSON格式输出：{"action":"follow_up|next_question|end","content":"..."}
+4. 所有回复用JSON格式输出：{"action":"follow_up|next_question|end","reply":"..."}
 当前题目：{questionTitle}

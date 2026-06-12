@@ -130,17 +130,18 @@ export const useInterviewStore = defineStore('interview', () => {
             streaming.value = false
             if (event.messageId) messages.value[idx].messageId = event.messageId
             applyQuestionEvent(event)
-          } else if (event.type === 'next_question' && event.content) {
-            streaming.value = false
-            messages.value[idx].content = event.content
+          } else if (event.type === 'next_question') {
+            // 面试官的自然反馈已通过 token 流式呈现，这里把"下一题"追加到同一条消息后面
+            if (event.content) {
+              streamingContent.value += event.content
+              messages.value[idx].content = streamingContent.value
+            }
             messages.value[idx].messageType = 'QUESTION'
             applyQuestionEvent(event)
           } else if (event.type === 'interview_end') {
             streaming.value = false
-            if (event.content) {
-              messages.value[idx].content = event.content
-              messages.value[idx].messageType = 'CLOSING'
-            }
+            // 结束语已通过 token 流式呈现，无需覆盖；仅标记结束并记录报告
+            messages.value[idx].messageType = 'CLOSING'
             reportId.value = event.reportId ?? null
             interviewEnded.value = true
             options?.onInterviewEnd?.()

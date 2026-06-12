@@ -21,19 +21,6 @@ services:
       retries: 5
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
 
-  redis:
-    image: redis:7-alpine
-    container_name: ai-interview-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-
   chroma:
     image: chromadb/chroma:0.5.3
     container_name: ai-interview-chroma
@@ -46,5 +33,4 @@ services:
 
 volumes:
   mysql_data:
-  redis_data:
   chroma_data:

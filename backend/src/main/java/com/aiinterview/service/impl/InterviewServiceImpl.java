@@ -96,7 +96,7 @@ public class InterviewServiceImpl implements InterviewService {
             interviewQuestionMapper.insert(iq);
         }
         Question firstQ = questions.get(0);
-        String greeting = buildGreeting(position.getName(), questions.size(), firstQ.getTitle());
+        String greeting = buildGreeting(position.getName(), questions.size(), firstQ);
         ChatMessage firstMsg = saveMessage(session.getId(), firstQ.getId(), "ASSISTANT", greeting, "QUESTION", 1);
         SessionContext ctx = new SessionContext();
         ctx.currentOrder = 1;
@@ -137,6 +137,7 @@ public class InterviewServiceImpl implements InterviewService {
             throw new BusinessException("当前面试题目不存在，请结束本次面试后重新开始");
         }
         Question currentQ = questionMapper.selectById(currentIq.getQuestionId());
+        List<LlmService.ChatMessage> history = buildHistory(sessionId);
         saveMessage(sessionId, currentQ.getId(), "USER", request.getContent(), request.getMessageType(), ctx.currentOrder);
         Position position = positionMapper.selectOne(new LambdaQueryWrapper<Position>()
                 .eq(Position::getCode, session.getPositionCode()));
@@ -144,7 +145,9 @@ public class InterviewServiceImpl implements InterviewService {
                 currentQ, request.getContent(), ctx.followUpCount,
                 ctx.currentOrder, session.getTotalQuestions(),
                 position != null ? position.getName() : session.getPositionCode(),
-                latestCodingContext(sessionId, currentQ));
+                latestCodingContext(sessionId, currentQ),
+                session.getPositionCode(),
+                history);
         SseEmitter emitter = new SseEmitter(120000L);
         new Thread(() -> {
             try {
@@ -164,14 +167,20 @@ public class InterviewServiceImpl implements InterviewService {
     private void streamResponse(SseEmitter emitter, FollowUpStrategy.Decision decision,
                                 InterviewSession session, SessionContext ctx,
                                 Question currentQ, InterviewQuestion currentIq) throws IOException {
-        String content = decision.content();
+        String reply = decision.reply();
+        // 先把面试官对回答的自然反馈逐块"打字"推送，营造真实对话感
+        streamText(emitter, reply);
+
         String messageType;
         Long reportId = null;
+        String savedContent = reply;
+        Long boundQuestionId = currentQ.getId();
+        int boundOrder = ctx.currentOrder;
+
         switch (decision.action()) {
             case FOLLOW_UP -> {
                 ctx.followUpCount++;
                 messageType = "FOLLOW_UP";
-                sendEvent(emitter, Map.of("type", "token", "content", content));
             }
             case NEXT_QUESTION -> {
                 currentIq.setIsAnswered(1);
@@ -184,38 +193,38 @@ public class InterviewServiceImpl implements InterviewService {
                 InterviewQuestion nextIq = getCurrentQuestion(session.getId(), ctx.currentOrder);
                 if (nextIq != null) {
                     Question nextQ = questionMapper.selectById(nextIq.getQuestionId());
-                    content = "**下一题：**" + nextQ.getTitle();
+                    String nextText = "\n\n**第 " + ctx.currentOrder + " 题：** " + nextQ.getTitle();
+                    savedContent = reply + nextText;
+                    boundQuestionId = nextQ.getId();
+                    boundOrder = ctx.currentOrder;
                     Map<String, Object> event = new HashMap<>(buildQuestionMeta(nextQ, ctx.currentOrder));
                     event.put("type", "next_question");
-                    event.put("content", content);
+                    event.put("content", nextText);
                     sendEvent(emitter, event);
                 }
             }
             case END -> {
                 currentIq.setIsAnswered(1);
                 interviewQuestionMapper.updateById(currentIq);
+                session.setAnsweredCount(session.getAnsweredCount() + 1);
+                sessionMapper.updateById(session);
+                messageType = "CLOSING";
                 Map<String, Object> endData = endSession(session, true);
                 reportId = (Long) endData.get("reportId");
                 Map<String, Object> endEvent = new HashMap<>();
                 endEvent.put("type", "interview_end");
-                endEvent.put("content", endData.getOrDefault("message", "Interview completed, generating report..."));
                 if (reportId != null) {
                     endEvent.put("reportId", reportId);
                 }
                 sendEvent(emitter, endEvent);
-                messageType = "CLOSING";
-                content = decision.content();
             }
             default -> messageType = "NORMAL";
         }
-        ChatMessage reply = saveMessage(session.getId(),
-                decision.action() == FollowUpStrategy.Action.NEXT_QUESTION && ctx.currentOrder <= session.getTotalQuestions()
-                        ? getCurrentQuestion(session.getId(), ctx.currentOrder).getQuestionId()
-                        : currentQ.getId(),
-                "ASSISTANT", content, messageType, ctx.currentOrder);
+
+        ChatMessage replyMsg = saveMessage(session.getId(), boundQuestionId, "ASSISTANT", savedContent, messageType, boundOrder);
         Map<String, Object> done = new HashMap<>();
         done.put("type", "done");
-        done.put("messageId", reply.getId());
+        done.put("messageId", replyMsg.getId());
         done.put("messageType", messageType);
         done.put("questionOrder", ctx.currentOrder);
         Question activeQuestion = resolveQuestionForOrder(session.getId(), ctx.currentOrder);
@@ -225,6 +234,45 @@ public class InterviewServiceImpl implements InterviewService {
         if (reportId != null) done.put("reportId", reportId);
         sendEvent(emitter, done);
         emitter.complete();
+    }
+
+    private void streamText(SseEmitter emitter, String text) {
+        if (!StringUtils.hasText(text)) {
+            return;
+        }
+        int step = 6;
+        for (int i = 0; i < text.length(); i += step) {
+            String piece = text.substring(i, Math.min(i + step, text.length()));
+            sendEvent(emitter, Map.of("type", "token", "content", piece));
+            try {
+                Thread.sleep(18);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
+    private List<LlmService.ChatMessage> buildHistory(Long sessionId) {
+        List<ChatMessage> recent = chatMessageMapper.selectList(new LambdaQueryWrapper<ChatMessage>()
+                .eq(ChatMessage::getSessionId, sessionId)
+                .orderByDesc(ChatMessage::getCreatedAt)
+                .last("LIMIT 8"));
+        Collections.reverse(recent);
+        List<LlmService.ChatMessage> history = new ArrayList<>();
+        for (ChatMessage m : recent) {
+            String role = "USER".equals(m.getRole()) ? "user"
+                    : "ASSISTANT".equals(m.getRole()) ? "assistant" : null;
+            if (role == null || !StringUtils.hasText(m.getContent())) {
+                continue;
+            }
+            String content = m.getContent();
+            if (content.length() > 600) {
+                content = content.substring(0, 600) + "...";
+            }
+            history.add(new LlmService.ChatMessage(role, content));
+        }
+        return history;
     }
 
     @Override
@@ -421,47 +469,104 @@ public class InterviewServiceImpl implements InterviewService {
                 + "\n代码：\n" + code;
     }
 
+    /**
+     * 按"循序渐进"的真实面试节奏抽题：
+     * 自我介绍开场 → 技术基础 → 场景设计 → 项目深挖 → 手撕代码，整体难度由易到难。
+     */
     private List<Question> pickQuestions(String positionCode, int count, Long sessionId, Long resumeSnapshotId) {
-        List<Question> selected = new ArrayList<>();
-        if (resumeSnapshotId != null) {
-            Question projectQuestion = createProjectDeepQuestion(positionCode, sessionId, resumeSnapshotId);
-            if (projectQuestion != null) {
-                selected.add(projectQuestion);
-            }
-        }
-        addOneByType(selected, positionCode, "BEHAVIOR");
-        addOneByType(selected, positionCode, "SCENARIO");
-        addOneByType(selected, positionCode, "TECH_KNOWLEDGE");
+        List<Question> ordered = new ArrayList<>();
+        Set<Long> usedIds = new HashSet<>();
 
-        List<Question> all = questionMapper.selectList(new LambdaQueryWrapper<Question>()
-                .eq(Question::getPositionCode, positionCode)
-                .isNull(Question::getBindingSessionId)
-                .last("LIMIT " + Math.max(count * 4, 20)));
-        Collections.shuffle(all);
-        Set<Long> selectedIds = selected.stream()
-                .map(Question::getId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        for (Question question : all) {
-            if (selected.size() >= count) {
+        // 1) 自我介绍开场（合成题，不计入技术评分）
+        ordered.add(createSelfIntroQuestion(positionCode, sessionId));
+
+        // 2) 题库按类型分组，组内按难度升序
+        Map<String, Deque<Question>> pools = loadQuestionPools(positionCode);
+
+        // 3) 简历项目深挖题（若上传了简历）
+        Question resumeProject = resumeSnapshotId != null
+                ? createProjectDeepQuestion(positionCode, sessionId, resumeSnapshotId)
+                : null;
+
+        // 4) 合理的考察顺序
+        String[] sequence = {
+                "TECH_KNOWLEDGE", "TECH_KNOWLEDGE", "SCENARIO", "PROJECT_DEEP",
+                "TECH_KNOWLEDGE", "SCENARIO", "BEHAVIOR", "PROJECT_DEEP", "BEHAVIOR", "TECH_KNOWLEDGE"
+        };
+        boolean projectInjected = false;
+        for (String type : sequence) {
+            if (ordered.size() >= count) {
                 break;
             }
-            if (question.getId() != null && selectedIds.add(question.getId())) {
-                selected.add(question);
+            if ("PROJECT_DEEP".equals(type) && resumeProject != null && !projectInjected) {
+                ordered.add(resumeProject);
+                if (resumeProject.getId() != null) {
+                    usedIds.add(resumeProject.getId());
+                }
+                projectInjected = true;
+                continue;
+            }
+            Question q = pollFromPool(pools, type, usedIds);
+            if (q != null) {
+                ordered.add(q);
+                usedIds.add(q.getId());
             }
         }
-        return selected.stream().limit(count).collect(Collectors.toList());
+
+        // 5) 数量不足时，用剩余题目补齐（难度升序）
+        if (ordered.size() < count) {
+            for (Deque<Question> pool : pools.values()) {
+                while (ordered.size() < count && !pool.isEmpty()) {
+                    Question q = pool.pollFirst();
+                    if (q.getId() != null && usedIds.add(q.getId())) {
+                        ordered.add(q);
+                    }
+                }
+            }
+        }
+        return ordered.stream().limit(count).collect(Collectors.toList());
     }
 
-    private void addOneByType(List<Question> selected, String positionCode, String questionType) {
-        Question question = questionMapper.selectOne(new LambdaQueryWrapper<Question>()
+    private Map<String, Deque<Question>> loadQuestionPools(String positionCode) {
+        List<Question> all = questionMapper.selectList(new LambdaQueryWrapper<Question>()
                 .eq(Question::getPositionCode, positionCode)
-                .eq(Question::getQuestionType, questionType)
-                .isNull(Question::getBindingSessionId)
-                .last("LIMIT 1"));
-        if (question != null && selected.stream().noneMatch(q -> Objects.equals(q.getId(), question.getId()))) {
-            selected.add(question);
+                .isNull(Question::getBindingSessionId));
+        Collections.shuffle(all);
+        all.sort(Comparator.comparingInt(q -> q.getDifficulty() == null ? 2 : q.getDifficulty()));
+        Map<String, Deque<Question>> pools = new LinkedHashMap<>();
+        for (Question q : all) {
+            String type = q.getQuestionType() == null ? "OTHER" : q.getQuestionType();
+            pools.computeIfAbsent(type, k -> new ArrayDeque<>()).addLast(q);
         }
+        return pools;
+    }
+
+    private Question pollFromPool(Map<String, Deque<Question>> pools, String type, Set<Long> usedIds) {
+        Deque<Question> pool = pools.get(type);
+        if (pool == null) {
+            return null;
+        }
+        while (!pool.isEmpty()) {
+            Question q = pool.pollFirst();
+            if (q.getId() != null && !usedIds.contains(q.getId())) {
+                return q;
+            }
+        }
+        return null;
+    }
+
+    private Question createSelfIntroQuestion(String positionCode, Long sessionId) {
+        Question q = new Question();
+        q.setPositionCode(positionCode);
+        q.setBindingSessionId(sessionId);
+        q.setTitle("在正式开始前，请先做一个简单的自我介绍，包括你的技术背景、最擅长的方向，以及一段有代表性的项目或学习经历。");
+        q.setAnswerReference("自我介绍重点：技术背景、擅长方向、代表性经历，表达清晰、逻辑连贯即可。");
+        q.setDifficulty(1);
+        q.setQuestionType("SELF_INTRO");
+        q.setTopic("自我介绍");
+        q.setSource("SYSTEM_OPENER");
+        questionMapper.insert(q);
+        return q;
     }
 
     private Question createProjectDeepQuestion(String positionCode, Long sessionId, Long resumeSnapshotId) {
@@ -667,10 +772,14 @@ public class InterviewServiceImpl implements InterviewService {
                 + "下一步建议说明为什么选择该算法，以及空输入、重复元素或极端规模下如何处理。";
     }
 
-    private String buildGreeting(String positionName, int total, String firstTitle) {
-        return "你好！我是今天的面试官，很高兴认识你。我们今天进行的是 "
-                + positionName + " 岗位的模拟面试，共有 " + total + " 道题目，请放松心态，我们开始吧。\n\n**第一题：**"
-                + firstTitle;
+    private String buildGreeting(String positionName, int total, Question firstQ) {
+        String intro = "你好，我是今天负责 " + positionName + " 岗位面试的面试官，很高兴见到你。"
+                + "我们大概会聊 " + total + " 个问题，从你的背景开始，逐步深入到一些技术细节。"
+                + "不用太紧张，把它当成一次平常的技术交流就好。";
+        if ("SELF_INTRO".equals(firstQ.getQuestionType())) {
+            return intro + "\n\n那我们开始吧——" + firstQ.getTitle();
+        }
+        return intro + "\n\n**第 1 题：** " + firstQ.getTitle();
     }
 
     private InterviewSession requireSession(Long userId, Long sessionId) {

@@ -52,7 +52,7 @@ export interface ChatMessage {
   createdAt?: string
 }
 
-export type QuestionType = 'TECH_KNOWLEDGE' | 'SCENARIO' | 'PROJECT_DEEP' | 'BEHAVIOR'
+export type QuestionType = 'SELF_INTRO' | 'TECH_KNOWLEDGE' | 'SCENARIO' | 'PROJECT_DEEP' | 'BEHAVIOR'
 
 export interface CodingChallenge {
   id: number
@@ -137,7 +137,16 @@ export interface ReportScores {
   expression: number
   logic: number
   depth: number
-  confidence: number
+  confidence?: number
+}
+
+export interface QuestionScore {
+  questionOrder: number
+  questionTitle: string
+  techScore?: number
+  logicScore?: number
+  depthScore?: number
+  comment?: string
 }
 
 export interface ReportDetail {
@@ -152,7 +161,7 @@ export interface ReportDetail {
   highlights?: string[]
   weaknesses?: string[]
   suggestions?: string[]
-  questionScores?: unknown[]
+  questionScores?: QuestionScore[]
 }
 
 export interface GrowthRecord {

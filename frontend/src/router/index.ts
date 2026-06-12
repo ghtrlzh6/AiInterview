@@ -67,6 +67,12 @@ const routes: RouteRecordRaw[] = [
   { path: '/login', redirect: '/auth/login' },
   { path: '/register', redirect: '/auth/register' },
   {
+    path: '/share/:token',
+    name: 'shared-report',
+    component: () => import('@/pages/report/SharedReportPage.vue'),
+    meta: { guestOnly: false },
+  },
+  {
     path: '/admin',
     component: () => import('@/layouts/AdminLayout.vue'),
     meta: { requiresAuth: true, requiresAdmin: true },

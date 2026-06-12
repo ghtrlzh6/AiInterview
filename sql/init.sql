@@ -408,23 +408,6 @@ INSERT INTO t_kb_article (kb_node_id, title, body_markdown) VALUES
 (4, 'JVM 内存模型详解', '# JVM 内存模型\n\n## 运行时数据区\n\n- **堆（Heap）**：存放对象实例，GC 主要区域\n- **栈（Stack）**：线程私有，存放局部变量表、操作数栈\n- **方法区（Method Area）**：类信息、常量、静态变量\n- **程序计数器**：当前线程执行字节码行号\n- **本地方法栈**：Native 方法服务\n\n## 元空间（Metaspace）\n\nJDK 8 起永久代被元空间取代，使用本地内存。'),
 (6, 'HashMap 底层实现', '# HashMap 底层原理\n\n## 数据结构\n\nJDK 8 采用 **数组 + 链表 + 红黑树**。\n\n- 默认容量 16，负载因子 0.75\n- 链表长度 > 8 且数组长度 >= 64 时转红黑树\n- hash 碰撞通过链地址法解决');
 
--- 手撕题示例
-INSERT INTO t_coding_challenge (external_ref, title, problem_md, difficulty, canonical_tags) VALUES
-('Hot100-001', '两数之和', '给定一个整数数组 nums 和一个目标值 target，请你在该数组中找出和为目标值的那两个整数。\n\n**示例：** nums = [2,7,11,15], target = 9 → [0,1]', 1, '["数组","哈希"]'),
-('Hot100-003', '无重复字符的最长子串', '给定一个字符串 s，请你找出其中不含有重复字符的最长子串的长度。', 2, '["字符串","滑动窗口"]');
-
--- Java 后端示例题目
-INSERT INTO t_question (position_code, primary_kb_module_id, title, answer_reference, difficulty, question_type, topic, source) VALUES
-('JAVA_BACKEND', 3, '请解释 Java 虚拟机（JVM）内存模型的组成及各区域的作用？', '堆、栈、方法区、程序计数器、本地方法栈；JDK8 元空间替代永久代', 2, 'TECH_KNOWLEDGE', 'JVM', 'MANUAL'),
-('JAVA_BACKEND', 5, '请说明 HashMap 的底层实现原理，以及 JDK 8 的优化？', '数组+链表+红黑树；负载因子0.75；树化阈值8', 2, 'TECH_KNOWLEDGE', '集合框架', 'MANUAL'),
-('JAVA_BACKEND', NULL, '如何设计一个高并发的秒杀系统？请从架构层面阐述。', '限流、缓存、异步、库存扣减、消息队列', 3, 'SCENARIO', '系统设计', 'MANUAL'),
-('JAVA_BACKEND', NULL, '请结合你简历中的项目，深入讲解你在项目中遇到的最大技术挑战及解决方案。', 'STAR 法则，结合具体技术细节', 2, 'PROJECT_DEEP', '项目经验', 'MANUAL'),
-('JAVA_BACKEND', NULL, '请实现「两数之和」算法题（可在 IDE 中编写代码）。', '哈希表 O(n) 解法', 1, 'BEHAVIOR', '算法', 'LC_HOT100');
-
-UPDATE t_question SET coding_challenge_id = 1 WHERE question_type = 'BEHAVIOR' AND position_code = 'JAVA_BACKEND' LIMIT 1;
-
-INSERT INTO t_question_kb_point (question_id, kb_node_id) VALUES (1, 4), (2, 6);
-
 -- 系统配置
 INSERT INTO t_system_config (config_key, config_value, config_type, description, is_sensitive) VALUES
 ('ai.llm.provider', 'deepseek', 'STRING', 'LLM提供商', 0),
@@ -435,7 +418,7 @@ INSERT INTO t_system_config (config_key, config_value, config_type, description,
 ('ai.llm.temperature', '0.7', 'STRING', '生成温度', 0),
 ('ai.llm.max-tokens', '4096', 'STRING', '最大输出 token', 0),
 ('system.interview.default-question-count', '8', 'STRING', '默认面试题数', 0),
-('prompt.interview.system', '你是一位专业严肃的技术面试官，正在对{positionName}岗位的候选人进行面试。面试共{totalQuestions}题，当前是第{currentOrder}题。规则：1.回答不完整可追问，每题最多2次追问后推进下一题 2.所有回复用JSON：{"action":"follow_up|next_question|end","content":"..."} 当前题目：{questionTitle}', 'TEXT', '面试官系统提示词', 0),
+('prompt.interview.system', '你是一位专业严肃的技术面试官，正在对{positionName}岗位的候选人进行面试。面试共{totalQuestions}题，当前是第{currentOrder}题。规则：1.回答不完整可追问，每题最多2次追问后推进下一题 2.所有回复用JSON：{"action":"follow_up|next_question|end","reply":"..."} 当前题目：{questionTitle}', 'TEXT', '面试官系统提示词', 0),
 ('prompt.evaluation.question', '岗位：{positionName} 题目：{questionTitle} 参考要点：{answerReference} 候选人回答：{userAnswer} 请JSON输出：{"tech_score":0-100,"logic_score":0-100,"depth_score":0-100,"comment":"..."}', 'TEXT', '逐题评分提示词', 0),
 ('prompt.evaluation.final', '各题评分汇总：{scoreSummary} 请JSON输出综合报告：{"overall_score":0-100,"expression_score":0-100,"confidence_score":0-100,"summary":"Markdown总结","highlights":[],"weaknesses":[],"suggestions":[]}', 'TEXT', '综合报告提示词', 0);
 
@@ -579,14 +562,61 @@ INSERT INTO t_question (position_code, primary_kb_module_id, title, answer_refer
 ('GAME_CLIENT', NULL, '请实现「二分查找」', '有序数组、边界条件', 1, 'BEHAVIOR', '算法', 'MANUAL'),
 ('GAME_CLIENT', NULL, '请实现「单例模式」', '线程安全、饿汉/懒汉', 2, 'BEHAVIOR', '设计模式', 'MANUAL');
 
+-- 关联手撕题与算法题池
+UPDATE t_question q
+JOIN t_coding_challenge c ON c.external_ref = 'Hot100-001'
+SET q.coding_challenge_id = c.id
+WHERE q.question_type = 'BEHAVIOR' AND q.title LIKE '%两数之和%';
+
+UPDATE t_question q
+JOIN t_coding_challenge c ON c.external_ref = 'Hot100-003'
+SET q.coding_challenge_id = c.id
+WHERE q.question_type = 'BEHAVIOR' AND q.title LIKE '%无重复字符的最长子串%';
+
+UPDATE t_question q
+JOIN t_coding_challenge c ON c.external_ref = 'Hot100-102'
+SET q.coding_challenge_id = c.id
+WHERE q.question_type = 'BEHAVIOR' AND q.title LIKE '%二叉树的层序遍历%';
+
+UPDATE t_question q
+JOIN t_coding_challenge c ON c.external_ref = 'Hot100-146'
+SET q.coding_challenge_id = c.id
+WHERE q.question_type = 'BEHAVIOR' AND q.title LIKE '%LRU缓存%';
+
+UPDATE t_question q
+JOIN t_coding_challenge c ON c.external_ref = 'Hot100-206'
+SET q.coding_challenge_id = c.id
+WHERE q.question_type = 'BEHAVIOR' AND q.title LIKE '%反转链表%';
+
+UPDATE t_question q
+JOIN t_coding_challenge c ON c.external_ref = 'Hot100-005'
+SET q.coding_challenge_id = c.id
+WHERE q.question_type = 'BEHAVIOR' AND q.title LIKE '%最长回文子串%';
+
+UPDATE t_question q
+JOIN t_coding_challenge c ON c.external_ref = 'Hot100-104'
+SET q.coding_challenge_id = c.id
+WHERE q.question_type = 'BEHAVIOR' AND q.title LIKE '%二叉树的最大深度%';
+
+UPDATE t_question q
+JOIN t_coding_challenge c ON c.external_ref = 'Hot100-121'
+SET q.coding_challenge_id = c.id
+WHERE q.question_type = 'BEHAVIOR' AND q.title LIKE '%买卖股票的最佳时机%';
+
+INSERT INTO t_question_kb_point (question_id, kb_node_id)
+SELECT q.id, 4 FROM t_question q WHERE q.position_code = 'JAVA_BACKEND' AND q.title LIKE '%JVM 内存模型%' LIMIT 1;
+
+INSERT INTO t_question_kb_point (question_id, kb_node_id)
+SELECT q.id, 6 FROM t_question q WHERE q.position_code = 'JAVA_BACKEND' AND q.title LIKE '%HashMap%' LIMIT 1;
+
 -- ========================================
 -- 扩展：四岗位差异化 Prompt 配置
 -- ========================================
 INSERT INTO t_system_config (config_key, config_value, config_type, description, is_sensitive) VALUES
-('prompt.interview.system.java_backend', '你是一位专业严谨的Java后端面试官，正在对Java后端开发工程师岗位的候选人进行面试。面试共{totalQuestions}题，当前是第{currentOrder}题。角色定位：你是资深Java后端架构师，对Spring生态、分布式系统、JVM调优、数据库设计有深入理解。注重考察候选人的基础扎实度、技术深度、项目经验、问题排查能力。适当追问，引导候选人展示真实水平。面试重点：1.Java基础：集合、并发、JVM 2.Spring生态：Spring Boot、Spring Cloud、IOC/AOP 3.数据库：MySQL索引、事务、锁 4.中间件：Redis、消息队列 5.分布式系统：CAP、限流、熔断、分布式锁 6.项目经验：技术选型、架构设计、问题排查。规则：1.回答不完整可追问，每题最多2次追问后推进下一题 2.追问针对不足点发问 3.推进下一题自然过渡 4.所有回复用JSON：{"action":"follow_up|next_question|end","content":"..."} 当前题目：{questionTitle}', 'TEXT', 'Java后端面试官提示词', 0),
-('prompt.interview.system.web_frontend', '你是一位专业资深的前端面试官，正在对Web前端开发工程师岗位的候选人进行面试。面试共{totalQuestions}题，当前是第{currentOrder}题。角色定位：你是资深前端架构师，对JavaScript/TypeScript、Vue/React、工程化、性能优化有深入理解。注重考察候选人的基础扎实度、工程实践、解决问题能力。适当追问，引导候选人展示真实水平。面试重点：1.JS基础：原型、闭包、异步、事件循环 2.框架原理：Vue/React响应式、虚拟DOM、Diff算法 3.CSS：盒模型、布局、动画、性能 4.工程化：Webpack/Vite、构建优化、CI/CD 5.性能优化：首屏、渲染、资源加载 6.项目经验：组件设计、架构、技术选型。规则：1.回答不完整可追问，每题最多2次追问后推进下一题 2.追问针对不足点发问 3.推进下一题自然过渡 4.所有回复用JSON：{"action":"follow_up|next_question|end","content":"..."} 当前题目：{questionTitle}', 'TEXT', 'Web前端面试官提示词', 0),
-('prompt.interview.system.python_algo', '你是一位专业资深的算法/AI面试官，正在对Python算法工程师岗位的候选人进行面试。面试共{totalQuestions}题，当前是第{currentOrder}题。角色定位：你是资深算法工程师/数据科学家，对数据结构、算法、机器学习有深入理解。注重考察候选人的逻辑思维、算法能力、建模能力、项目落地能力。适当追问，引导候选人展示真实水平。面试重点：1.Python基础：语言特性、高级用法、性能 2.数据结构与算法：数组、链表、树、图、动态规划 3.机器学习：模型原理、特征工程、调优、评估 4.数据处理：NumPy、Pandas、数据清洗 5.系统设计：推荐系统、爬虫、工程化 6.项目经验：问题建模、方案选择、效果评估。规则：1.回答不完整可追问，每题最多2次追问后推进下一题 2.追问针对不足点发问 3.推进下一题自然过渡 4.所有回复用JSON：{"action":"follow_up|next_question|end","content":"..."} 当前题目：{questionTitle}', 'TEXT', 'Python算法工程师提示词', 0),
-('prompt.interview.system.game_client', '你是一位专业资深的游戏客户端面试官，正在对游戏客户端开发工程师岗位的候选人进行面试。面试共{totalQuestions}题，当前是第{currentOrder}题。角色定位：你是资深游戏客户端架构师，对Unity/Unreal引擎、渲染、物理、性能优化有深入理解。注重考察候选人的基础扎实度、技术深度、项目经验、优化能力。适当追问，引导候选人展示真实水平。面试重点：1.引擎：Unity/Unreal核心机制、生命周期、组件系统 2.渲染：Shader、Draw Call、渲染管线、性能优化 3.物理：碰撞检测、物理引擎、刚体 4.性能：内存优化、对象池、GC、性能分析 5.架构：ECS、框架设计、模块划分 6.项目经验：系统设计、问题排查、优化经历。规则：1.回答不完整可追问，每题最多2次追问后推进下一题 2.追问针对不足点发问 3.推进下一题自然过渡 4.所有回复用JSON：{"action":"follow_up|next_question|end","content":"..."} 当前题目：{questionTitle}', 'TEXT', '游戏客户端面试官提示词', 0);
+('prompt.interview.system.java_backend', '你是一位专业严谨的Java后端面试官，正在对Java后端开发工程师岗位的候选人进行面试。面试共{totalQuestions}题，当前是第{currentOrder}题。角色定位：你是资深Java后端架构师，对Spring生态、分布式系统、JVM调优、数据库设计有深入理解。注重考察候选人的基础扎实度、技术深度、项目经验、问题排查能力。适当追问，引导候选人展示真实水平。面试重点：1.Java基础：集合、并发、JVM 2.Spring生态：Spring Boot、Spring Cloud、IOC/AOP 3.数据库：MySQL索引、事务、锁 4.中间件：Redis、消息队列 5.分布式系统：CAP、限流、熔断、分布式锁 6.项目经验：技术选型、架构设计、问题排查。规则：1.回答不完整可追问，每题最多2次追问后推进下一题 2.追问针对不足点发问 3.推进下一题自然过渡 4.所有回复用JSON：{"action":"follow_up|next_question|end","reply":"..."} 当前题目：{questionTitle}', 'TEXT', 'Java后端面试官提示词', 0),
+('prompt.interview.system.web_frontend', '你是一位专业资深的前端面试官，正在对Web前端开发工程师岗位的候选人进行面试。面试共{totalQuestions}题，当前是第{currentOrder}题。角色定位：你是资深前端架构师，对JavaScript/TypeScript、Vue/React、工程化、性能优化有深入理解。注重考察候选人的基础扎实度、工程实践、解决问题能力。适当追问，引导候选人展示真实水平。面试重点：1.JS基础：原型、闭包、异步、事件循环 2.框架原理：Vue/React响应式、虚拟DOM、Diff算法 3.CSS：盒模型、布局、动画、性能 4.工程化：Webpack/Vite、构建优化、CI/CD 5.性能优化：首屏、渲染、资源加载 6.项目经验：组件设计、架构、技术选型。规则：1.回答不完整可追问，每题最多2次追问后推进下一题 2.追问针对不足点发问 3.推进下一题自然过渡 4.所有回复用JSON：{"action":"follow_up|next_question|end","reply":"..."} 当前题目：{questionTitle}', 'TEXT', 'Web前端面试官提示词', 0),
+('prompt.interview.system.python_algo', '你是一位专业资深的算法/AI面试官，正在对Python算法工程师岗位的候选人进行面试。面试共{totalQuestions}题，当前是第{currentOrder}题。角色定位：你是资深算法工程师/数据科学家，对数据结构、算法、机器学习有深入理解。注重考察候选人的逻辑思维、算法能力、建模能力、项目落地能力。适当追问，引导候选人展示真实水平。面试重点：1.Python基础：语言特性、高级用法、性能 2.数据结构与算法：数组、链表、树、图、动态规划 3.机器学习：模型原理、特征工程、调优、评估 4.数据处理：NumPy、Pandas、数据清洗 5.系统设计：推荐系统、爬虫、工程化 6.项目经验：问题建模、方案选择、效果评估。规则：1.回答不完整可追问，每题最多2次追问后推进下一题 2.追问针对不足点发问 3.推进下一题自然过渡 4.所有回复用JSON：{"action":"follow_up|next_question|end","reply":"..."} 当前题目：{questionTitle}', 'TEXT', 'Python算法工程师提示词', 0),
+('prompt.interview.system.game_client', '你是一位专业资深的游戏客户端面试官，正在对游戏客户端开发工程师岗位的候选人进行面试。面试共{totalQuestions}题，当前是第{currentOrder}题。角色定位：你是资深游戏客户端架构师，对Unity/Unreal引擎、渲染、物理、性能优化有深入理解。注重考察候选人的基础扎实度、技术深度、项目经验、优化能力。适当追问，引导候选人展示真实水平。面试重点：1.引擎：Unity/Unreal核心机制、生命周期、组件系统 2.渲染：Shader、Draw Call、渲染管线、性能优化 3.物理：碰撞检测、物理引擎、刚体 4.性能：内存优化、对象池、GC、性能分析 5.架构：ECS、框架设计、模块划分 6.项目经验：系统设计、问题排查、优化经历。规则：1.回答不完整可追问，每题最多2次追问后推进下一题 2.追问针对不足点发问 3.推进下一题自然过渡 4.所有回复用JSON：{"action":"follow_up|next_question|end","reply":"..."} 当前题目：{questionTitle}', 'TEXT', '游戏客户端面试官提示词', 0);
 
 -- ========================================
 -- 扩展：四岗位知识库示例
@@ -633,3 +663,51 @@ INSERT INTO t_learning_resource (position_code, title, description, resource_typ
 ('GAME_CLIENT', '游戏性能优化指南', '内存优化、Draw Call优化、GC优化', 'ARTICLE', 'https://example.com/game-performance', '性能优化', 3),
 ('GAME_CLIENT', 'Shader 编程入门', 'Unity Shader、图形渲染基础', 'ARTICLE', 'https://example.com/shader-intro', 'Shader', 3),
 ('GAME_CLIENT', '游戏网络同步技术', '帧同步、状态同步、预测回滚', 'ARTICLE', 'https://example.com/game-network', '网络同步', 3);
+
+-- ========================================
+-- 扩展：更多知识库文章（四岗位）
+-- ========================================
+INSERT INTO t_kb_article (kb_node_id, title, body_markdown) VALUES
+(4, 'JVM 垃圾回收调优入门', '# GC 调优\n\n## 常见收集器\n\n- Serial / Parallel\n- CMS\n- G1\n- ZGC\n\n## 调优思路\n\n1. 明确停顿目标\n2. 观察 GC 日志\n3. 调整堆大小与比例\n4. 验证吞吐与延迟'),
+(6, 'ConcurrentHashMap 原理', '# ConcurrentHashMap\n\nJDK8 采用分段 CAS + synchronized 桶锁，读操作基本无锁，写操作只锁单个桶。'),
+(12, 'ThreadLocal 使用与内存泄漏', '# ThreadLocal\n\n每个线程维护独立副本。线程池场景必须 remove，否则可能引发内存泄漏。'),
+(22, 'Vue Router 导航守卫', '# 路由守卫\n\n- `beforeEach` 全局前置\n- `beforeEnter` 路由独享\n- 组件内 `beforeRouteEnter`'),
+(21, 'Pinia 状态管理实践', '# Pinia\n\n轻量、类型友好，推荐替代 Vuex。按模块拆分 store，避免巨型状态树。'),
+(32, 'LeetCode 动态规划模板', '# DP 模板\n\n1. 定义状态\n2. 状态转移方程\n3. 初始化\n4. 返回目标状态'),
+(31, '时间复杂度分析方法', '# 复杂度\n\n关注循环嵌套、递归深度、数据结构操作均摊成本。'),
+(42, 'Draw Call 优化清单', '# Draw Call\n\n- 合并材质\n- 静态/动态批处理\n- 图集合批\n- LOD 与遮挡剔除');
+
+-- ========================================
+-- 演示账号：demo_student / demo123456
+-- ========================================
+INSERT INTO t_user (username, password, nickname, school, major, role, target_position_code, total_interviews) VALUES
+('demo_student', '$2b$10$6S2zCfpoSMe2c8v22/p5uuMpj4oAAK/TbunDr7fJHK7oykce10IgO', '演示学生', '示例大学', '软件工程', 'USER', 'JAVA_BACKEND', 3);
+
+SET @demo_user_id = LAST_INSERT_ID();
+
+INSERT INTO t_interview_session (user_id, position_code, session_status, input_mode, total_questions, answered_count, duration_seconds, start_time, end_time) VALUES
+(@demo_user_id, 'JAVA_BACKEND', 'COMPLETED', 'TEXT', 8, 8, 1800, DATE_SUB(NOW(), INTERVAL 14 DAY), DATE_SUB(NOW(), INTERVAL 14 DAY)),
+(@demo_user_id, 'JAVA_BACKEND', 'COMPLETED', 'TEXT', 8, 8, 2100, DATE_SUB(NOW(), INTERVAL 7 DAY), DATE_SUB(NOW(), INTERVAL 7 DAY)),
+(@demo_user_id, 'JAVA_BACKEND', 'COMPLETED', 'VOICE', 8, 8, 2400, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_SUB(NOW(), INTERVAL 1 DAY));
+
+INSERT INTO t_evaluation_report (session_id, user_id, position_code, report_status, overall_score, tech_score, expression_score, logic_score, depth_score, confidence_score, summary, highlights, weaknesses, suggestions) VALUES
+(1, @demo_user_id, 'JAVA_BACKEND', 'COMPLETED', 72.00, 70.00, 68.00, 74.00, 71.00, 69.00,
+ '## 综合评估\n\n首次模拟面试整体达标，基础概念掌握尚可，表达与深度仍需加强。',
+ '["Java 基础概念回答较完整", "场景题思路基本正确"]',
+ '["并发与 JVM 深度不足", "项目描述缺乏量化结果"]',
+ '["复习 JVM 与并发专题", "用 STAR 法则重写项目介绍"]'),
+(2, @demo_user_id, 'JAVA_BACKEND', 'COMPLETED', 78.50, 76.00, 75.00, 80.00, 79.00, 77.00,
+ '## 综合评估\n\n第二次面试较首次有明显进步，逻辑性提升明显。',
+ '["追问响应更快", "系统设计题结构更清晰"]',
+ '["Redis 与 MySQL 细节仍可加强"]',
+ '["补充中间件实战案例", "继续练习模拟面试"]'),
+(3, @demo_user_id, 'JAVA_BACKEND', 'COMPLETED', 85.00, 84.00, 82.00, 86.00, 85.00, 83.00,
+ '## 综合评估\n\n第三次面试表现稳定，具备较好的岗位匹配度。',
+ '["技术深度明显提升", "表达更自信有条理"]',
+ '["极端场景下的排查经验仍可补充"]',
+ '["保持练习节奏", "针对薄弱点做专项突破"]');
+
+INSERT INTO t_growth_record (user_id, report_id, session_id, position_code, overall_score, tech_score, expression_score, logic_score, depth_score, confidence_score, record_date) VALUES
+(@demo_user_id, 1, 1, 'JAVA_BACKEND', 72.00, 70.00, 68.00, 74.00, 71.00, 69.00, DATE_SUB(CURDATE(), INTERVAL 14 DAY)),
+(@demo_user_id, 2, 2, 'JAVA_BACKEND', 78.50, 76.00, 75.00, 80.00, 79.00, 77.00, DATE_SUB(CURDATE(), INTERVAL 7 DAY)),
+(@demo_user_id, 3, 3, 'JAVA_BACKEND', 85.00, 84.00, 82.00, 86.00, 85.00, 83.00, CURDATE());
