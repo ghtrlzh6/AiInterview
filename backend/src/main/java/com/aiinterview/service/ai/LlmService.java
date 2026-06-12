@@ -19,6 +19,18 @@ public interface LlmService {
 
     String getModelName();
 
+    LlmTestResult testConnection();
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    class LlmTestResult {
+        private boolean success;
+        private String model;
+        private long latencyMs;
+        private String message;
+    }
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor

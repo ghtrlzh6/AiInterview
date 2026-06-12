@@ -34,6 +34,10 @@
           <el-icon><User /></el-icon>
           <span>用户管理</span>
         </el-menu-item>
+        <el-menu-item index="/admin/resources">
+          <el-icon><Reading /></el-icon>
+          <span>学习资源</span>
+        </el-menu-item>
       </el-menu>
       <div class="p-4 mt-auto">
         <el-button type="primary" link class="!text-slate-400" @click="router.push('/')">
@@ -69,6 +73,7 @@ const titles: Record<string, string> = {
   '/admin/kb': '知识库管理',
   '/admin/ai-config': 'AI 配置',
   '/admin/users': '用户管理',
+  '/admin/resources': '学习资源管理',
 }
 
 const pageTitle = computed(() => titles[route.path] || '管理后台')

@@ -60,8 +60,8 @@
 | ✅ | `.env.example`、`scripts/load-env.ps1`、`start-backend.ps1`、`start-frontend.ps1` |
 | ✅ | Swagger / OpenAPI 配置 |
 | ✅ | 前端工程化：`router` / `layouts` 壳 / `utils/request.ts` / `App.vue` |
-| ⬜ | 远端 MySQL 部署与 `.env` 生产配置文档 |
-| ⬜ | Nginx 反向代理 + 前端 `dist` 静态部署 |
+| ✅ | 远端 MySQL 部署与 `.env` 生产配置文档（`docs/deployment.md`） |
+| ✅ | Nginx 反向代理 + 前端 `dist` 静态部署（`deploy/nginx/ai-interview.conf`） |
 
 ---
 
@@ -201,9 +201,9 @@
 | ✅ | `AdminResourceController` 资源 CRUD | A |
 | ✅ | 前端 AdminLayout + 路由守卫（ADMIN 角色） | A |
 | ✅ | 前端仪表盘、岗位管理、用户管理、AI 配置页 | A |
-| ⬜ | 管理后台**学习资源管理页**（对接 `AdminResourceController`） | A |
-| ⬜ | AI 配置页：Key 保存后真实连通性测试 | A |
-| ⬜ | `SystemConfigService` 热更新与 LLM 参数即时生效 | A |
+| ✅ | 管理后台**学习资源管理页**（对接 `AdminResourceController`） | A |
+| ✅ | AI 配置页：Key 保存后真实连通性测试 | A |
+| ✅ | `SystemConfigService` 热更新与 LLM 参数即时生效 | A |
 
 ---
 
@@ -230,8 +230,8 @@
 
 **近期优先任务**：
 1. ✅ 个人档案编辑页 + 首页数据对接（调用 D 的成长/报告 API）  
-2. ⬜ 管理后台学习资源管理页 + AI 配置真实联调  
-3. ⬜ 远端 MySQL + Nginx 生产部署  
+2. ✅ 管理后台学习资源管理页 + AI 配置真实联调  
+3. ✅ 远端 MySQL + Nginx 生产部署文档与配置模板  
 
 ---
 

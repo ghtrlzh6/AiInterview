@@ -102,8 +102,9 @@ npm run dev
 
 1. 使用 `admin` 账号登录
 2. 访问 **管理后台**（侧边栏或 `/admin`）
-3. 可管理：岗位、题库、知识库目录与正文、AI 配置与 Prompt、用户角色
-4. **AI 配置页**：填写 DeepSeek API Key 后点击「测试连通性」验证
+3. 可管理：岗位、题库、知识库、学习资源、AI 配置与 Prompt、用户角色
+4. **AI 配置页**：填写 DeepSeek API Key 后保存，点击「测试连通性」验证（配置热更新，无需重启后端）
+5. **学习资源管理**：`/admin/resources` 对学习资源增删改查
 
 ### 未配置 DeepSeek API 时
 
@@ -336,9 +337,9 @@ LLM_API_KEY=sk-你的DeepSeek密钥
 
 ---
 
-## 生产部署（后续 Nginx）
+## 生产部署（远端 MySQL + Nginx）
 
-当前先在本地运行。远端部署时参考：
+完整步骤见 **[docs/deployment.md](docs/deployment.md)**，包含远端 MySQL、`.env` 配置、Nginx 反向代理与 systemd 守护。
 
 ```
 Nginx (:80/:443)
@@ -346,16 +347,18 @@ Nginx (:80/:443)
   └── /api       → 反向代理 → Spring Boot (:8080)
 ```
 
-构建命令：
+Nginx 配置模板：`deploy/nginx/ai-interview.conf`
+
+快速构建：
 
 ```bash
 # 后端
 cd backend && mvn package -DskipTests
-java -jar target/ai-interview-*.jar
+java -jar target/ai-interview-backend-1.0.0-SNAPSHOT.jar
 
 # 前端
 cd frontend && npm run build
-# 将 dist/ 部署到 Nginx
+# 将 dist/ 复制到 Nginx root（见 deployment.md）
 ```
 
 ---
@@ -385,14 +388,17 @@ cd frontend && npm run build
 | `docs/database-design.md` | 数据库表结构 |
 | `docs/tech-stack.md` | 技术选型 |
 | `docs/development-plan.md` | 开发计划与 Sprint 任务 |
-| `docs/team-task-allocation.md` | 三人全栈分工与剩余任务（各管各模块前后端） |
+| `docs/team-task-allocation.md` | 四人全栈分工与剩余任务（各管各模块前后端） |
+| `docs/deployment.md` | 远端 MySQL + Nginx 生产部署指南 |
 
 ---
 
 ## 已知限制与后续计划
 
-- [ ] 远端 MySQL / Nginx 部署（待租服务器）
-- [ ] DeepSeek API Key 配置（待提供密钥）
+- [x] 远端 MySQL / Nginx 部署文档与配置模板（见 `docs/deployment.md`）
+- [x] 管理后台学习资源管理页 + AI 配置热更新与连通性测试
+- [ ] 实际上线租服务器部署（按 deployment.md 执行）
+- [ ] DeepSeek API Key 配置（待提供密钥，可在管理后台填写）
 - [ ] Chroma RAG 向量化（接口已预留，待接真实 Embedding）
 - [ ] 讯飞 ASR 备用方案（主方案为浏览器 Web Speech API）
 

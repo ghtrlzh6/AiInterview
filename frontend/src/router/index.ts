@@ -93,6 +93,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/admin/AiConfigPage.vue'),
       },
       { path: 'users', name: 'admin-users', component: () => import('@/pages/admin/UsersPage.vue') },
+      {
+        path: 'resources',
+        name: 'admin-resources',
+        component: () => import('@/pages/admin/ResourcesPage.vue'),
+      },
     ],
   },
 ]

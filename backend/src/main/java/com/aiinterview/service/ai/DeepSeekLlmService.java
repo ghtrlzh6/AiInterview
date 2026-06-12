@@ -3,9 +3,10 @@ package com.aiinterview.service.ai;
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
+import com.aiinterview.service.SystemConfigService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -20,39 +21,61 @@ import java.util.function.Consumer;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class DeepSeekLlmService implements LlmService {
+
+    private final SystemConfigService systemConfigService;
 
     private final OkHttpClient client = new OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(120, TimeUnit.SECONDS)
             .build();
 
-    @Value("${ai.llm.api-key:}")
-    private String apiKey;
-
-    @Value("${ai.llm.base-url:https://api.deepseek.com/v1}")
-    private String baseUrl;
-
-    @Value("${ai.llm.model:deepseek-chat}")
-    private String model;
-
-    @Value("${ai.llm.max-tokens:4096}")
-    private int maxTokens;
-
-    @Value("${ai.llm.temperature:0.7}")
-    private double temperature;
-
     private static final String THINK_OPEN = "<think>";
     private static final String THINK_CLOSE = "</think>";
 
     @Override
     public boolean isAvailable() {
-        return StringUtils.hasText(apiKey);
+        return StringUtils.hasText(getApiKey());
     }
 
     @Override
     public String getModelName() {
-        return model;
+        return systemConfigService.get("ai.llm.model", "deepseek-chat");
+    }
+
+    @Override
+    public LlmTestResult testConnection() {
+        long start = System.currentTimeMillis();
+        if (!isAvailable()) {
+            return new LlmTestResult(true, "mock", 5, "未配置 API Key，使用模拟模式");
+        }
+        try {
+            JSONObject body = buildRequestBody(List.of(new ChatMessage("user", "ping")), false);
+            Request request = new Request.Builder()
+                    .url(getBaseUrl() + "/chat/completions")
+                    .header("Authorization", "Bearer " + getApiKey())
+                    .header("Content-Type", "application/json")
+                    .post(RequestBody.create(body.toString(), MediaType.parse("application/json")))
+                    .build();
+            try (Response response = client.newCall(request).execute()) {
+                long latency = System.currentTimeMillis() - start;
+                if (!response.isSuccessful() || response.body() == null) {
+                    String err = response.body() != null ? response.body().string() : "empty body";
+                    return new LlmTestResult(false, getModelName(), latency,
+                            "LLM 连接失败（HTTP " + response.code() + "）: " + err);
+                }
+                JSONObject json = JSONUtil.parseObj(response.body().string());
+                String content = stripReasoning(json.getByPath("choices[0].message.content", String.class));
+                boolean ok = StringUtils.hasText(content);
+                return new LlmTestResult(ok, getModelName(), latency,
+                        ok ? "LLM 服务连接正常" : "LLM 返回空内容");
+            }
+        } catch (Exception e) {
+            long latency = System.currentTimeMillis() - start;
+            log.warn("LLM connectivity test failed", e);
+            return new LlmTestResult(false, getModelName(), latency, "LLM 连接异常: " + e.getMessage());
+        }
     }
 
     @Override
@@ -63,8 +86,8 @@ public class DeepSeekLlmService implements LlmService {
         try {
             JSONObject body = buildRequestBody(messages, false);
             Request request = new Request.Builder()
-                    .url(baseUrl + "/chat/completions")
-                    .header("Authorization", "Bearer " + apiKey)
+                    .url(getBaseUrl() + "/chat/completions")
+                    .header("Authorization", "Bearer " + getApiKey())
                     .header("Content-Type", "application/json")
                     .post(RequestBody.create(body.toString(), MediaType.parse("application/json")))
                     .build();
@@ -91,8 +114,8 @@ public class DeepSeekLlmService implements LlmService {
         try {
             JSONObject body = buildRequestBody(messages, true);
             Request request = new Request.Builder()
-                    .url(baseUrl + "/chat/completions")
-                    .header("Authorization", "Bearer " + apiKey)
+                    .url(getBaseUrl() + "/chat/completions")
+                    .header("Authorization", "Bearer " + getApiKey())
                     .header("Content-Type", "application/json")
                     .post(RequestBody.create(body.toString(), MediaType.parse("application/json")))
                     .build();
@@ -138,11 +161,11 @@ public class DeepSeekLlmService implements LlmService {
         }
         try {
             JSONObject body = new JSONObject();
-            body.set("model", "deepseek-embed");
+            body.set("model", systemConfigService.get("ai.llm.embed-model", "deepseek-embed"));
             body.set("input", text);
             Request request = new Request.Builder()
-                    .url(baseUrl + "/embeddings")
-                    .header("Authorization", "Bearer " + apiKey)
+                    .url(getBaseUrl() + "/embeddings")
+                    .header("Authorization", "Bearer " + getApiKey())
                     .header("Content-Type", "application/json")
                     .post(RequestBody.create(body.toString(), MediaType.parse("application/json")))
                     .build();
@@ -166,11 +189,27 @@ public class DeepSeekLlmService implements LlmService {
         }
     }
 
+    private String getApiKey() {
+        return systemConfigService.get("ai.llm.api-key", "");
+    }
+
+    private String getBaseUrl() {
+        return systemConfigService.get("ai.llm.base-url", "https://api.deepseek.com/v1");
+    }
+
+    private int getMaxTokens() {
+        return Integer.parseInt(systemConfigService.get("ai.llm.max-tokens", "4096"));
+    }
+
+    private double getTemperature() {
+        return Double.parseDouble(systemConfigService.get("ai.llm.temperature", "0.7"));
+    }
+
     private JSONObject buildRequestBody(List<ChatMessage> messages, boolean stream) {
         JSONObject body = new JSONObject();
-        body.set("model", model);
-        body.set("max_tokens", maxTokens);
-        body.set("temperature", temperature);
+        body.set("model", getModelName());
+        body.set("max_tokens", getMaxTokens());
+        body.set("temperature", getTemperature());
         body.set("stream", stream);
         JSONArray arr = new JSONArray();
         for (ChatMessage m : messages) {

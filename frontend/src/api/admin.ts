@@ -87,16 +87,31 @@ export function adminGenerateQuestions(data: Record<string, unknown>) {
   return request.post('/admin/ai/questions/generate', data)
 }
 
-export function adminGetAiConfig() {
-  return request.get<unknown, Record<string, unknown>>('/admin/ai-config')
+export interface AiConfigItem {
+  key: string
+  value: string
+  type?: string
+  sensitive?: boolean
+  description?: string
 }
 
-export function adminUpdateAiConfig(data: Record<string, unknown>) {
+export interface AiConfigTestResult {
+  success: boolean
+  model: string
+  latencyMs: number
+  message: string
+}
+
+export function adminGetAiConfig() {
+  return request.get<unknown, AiConfigItem[]>('/admin/ai-config')
+}
+
+export function adminUpdateAiConfig(data: { key: string; value: string }[]) {
   return request.put('/admin/ai-config', data)
 }
 
 export function adminTestAiConfig() {
-  return request.get('/admin/ai-config/test')
+  return request.get<unknown, AiConfigTestResult>('/admin/ai-config/test')
 }
 
 export function adminListUsers(params?: { page?: number; size?: number; keyword?: string }) {
@@ -112,7 +127,7 @@ export function adminUpdateUserRole(id: number, role: 'USER' | 'ADMIN') {
 }
 
 export function adminListResources(params?: Record<string, unknown>) {
-  return request.get('/admin/resources', { params })
+  return request.get<unknown, PageResult<Record<string, unknown>>>('/admin/resources', { params })
 }
 
 export function adminCreateResource(data: Record<string, unknown>) {

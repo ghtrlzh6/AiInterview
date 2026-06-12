@@ -5,7 +5,9 @@ import com.aiinterview.common.PageResult;
 import com.aiinterview.common.Result;
 import com.aiinterview.entity.LearningResource;
 import com.aiinterview.mapper.LearningResourceMapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.springframework.util.StringUtils;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -27,8 +29,13 @@ public class AdminResourceController {
     @GetMapping
     public Result<PageResult<Map<String, Object>>> list(
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        Page<LearningResource> p = resourceMapper.selectPage(new Page<>(page, size), null);
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String positionCode) {
+        LambdaQueryWrapper<LearningResource> wrapper = new LambdaQueryWrapper<>();
+        if (StringUtils.hasText(positionCode)) {
+            wrapper.eq(LearningResource::getPositionCode, positionCode);
+        }
+        Page<LearningResource> p = resourceMapper.selectPage(new Page<>(page, size), wrapper);
         List<Map<String, Object>> list = p.getRecords().stream().map(this::toMap).collect(Collectors.toList());
         return Result.success(new PageResult<>(p.getTotal(), page, size, list));
     }

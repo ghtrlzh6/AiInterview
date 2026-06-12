@@ -17,7 +17,7 @@
 import { ref, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 
-const props = defineProps<{
+defineProps<{
   sessionId?: number
   disabled?: boolean
 }>()

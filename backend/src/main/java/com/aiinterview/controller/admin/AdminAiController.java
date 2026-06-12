@@ -1,10 +1,12 @@
 package com.aiinterview.controller.admin;
 
+import com.aiinterview.common.BusinessException;
 import com.aiinterview.common.Result;
 import com.aiinterview.entity.Question;
 import com.aiinterview.entity.SystemConfig;
 import com.aiinterview.mapper.QuestionMapper;
 import com.aiinterview.mapper.SystemConfigMapper;
+import com.aiinterview.service.SystemConfigService;
 import com.aiinterview.service.ai.LlmService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,6 +25,7 @@ import java.util.stream.Collectors;
 public class AdminAiController {
 
     private final SystemConfigMapper configMapper;
+    private final SystemConfigService systemConfigService;
     private final QuestionMapper questionMapper;
     private final LlmService llmService;
 
@@ -35,31 +38,33 @@ public class AdminAiController {
 
     @PutMapping("/ai-config")
     public Result<Void> updateAiConfig(@RequestBody List<ConfigItem> items) {
-        for (ConfigItem item : items) {
-            SystemConfig cfg = configMapper.findByKey(item.key);
-            if (cfg != null) {
-                cfg.setConfigValue(item.value);
-                configMapper.updateById(cfg);
-            }
+        if (items == null || items.isEmpty()) {
+            return Result.success();
         }
+        Map<String, String> updates = new LinkedHashMap<>();
+        for (ConfigItem item : items) {
+            if (!StringUtils.hasText(item.key) || item.value == null) {
+                continue;
+            }
+            if (systemConfigService.isMaskedValue(item.value)) {
+                continue;
+            }
+            updates.put(item.key, item.value);
+        }
+        systemConfigService.setBatch(updates);
         return Result.success();
     }
 
     @GetMapping("/ai-config/test")
     public Result<Map<String, Object>> testLlm() {
-        long start = System.currentTimeMillis();
+        LlmService.LlmTestResult result = llmService.testConnection();
         Map<String, Object> m = new HashMap<>();
-        if (llmService.isAvailable()) {
-            String reply = llmService.chat(List.of(new LlmService.ChatMessage("user", "ping")));
-            m.put("success", StringUtils.hasText(reply));
-            m.put("model", llmService.getModelName());
-            m.put("latencyMs", System.currentTimeMillis() - start);
-            m.put("message", "LLM 服务连接正常");
-        } else {
-            m.put("success", true);
-            m.put("model", "mock");
-            m.put("latencyMs", 5);
-            m.put("message", "未配置 API Key，使用模拟模式");
+        m.put("success", result.isSuccess());
+        m.put("model", result.getModel());
+        m.put("latencyMs", result.getLatencyMs());
+        m.put("message", result.getMessage());
+        if (!result.isSuccess()) {
+            throw BusinessException.aiError(result.getMessage());
         }
         return Result.success(m);
     }
@@ -101,6 +106,7 @@ public class AdminAiController {
         m.put("value", value);
         m.put("type", cfg.getConfigType());
         m.put("sensitive", cfg.getIsSensitive() != null && cfg.getIsSensitive() == 1);
+        m.put("description", cfg.getDescription());
         return m;
     }
 
