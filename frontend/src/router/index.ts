@@ -27,6 +27,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/interview/InterviewEndPage.vue'),
         meta: { allowsActiveInterview: true, hideInterviewChrome: true },
       },
+      {
+        path: 'interviews',
+        name: 'interviews',
+        component: () => import('@/pages/interview/InterviewHistoryPage.vue'),
+      },
       { path: 'reports', name: 'reports', component: () => import('@/pages/report/ReportListPage.vue') },
       {
         path: 'reports/:reportId',

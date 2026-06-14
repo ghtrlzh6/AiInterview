@@ -205,7 +205,10 @@ watch(
 )
 
 function onTranscribed(text: string) {
-  inputText.value = text
+  const current = inputText.value.trim()
+  const next = text.trim()
+  if (!next) return
+  inputText.value = current ? `${current}\n${next}` : next
 }
 
 function goEndPage() {

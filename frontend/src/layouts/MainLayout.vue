@@ -20,6 +20,10 @@
           <el-icon><VideoCamera /></el-icon>
           <span>开始面试</span>
         </el-menu-item>
+        <el-menu-item index="/interviews">
+          <el-icon><Tickets /></el-icon>
+          <span>所有面试</span>
+        </el-menu-item>
         <el-menu-item index="/reports">
           <el-icon><Document /></el-icon>
           <span>评估报告</span>
@@ -86,6 +90,7 @@ const isInterviewLocked = computed(() => route.name === 'interview-room')
 
 const activeMenu = computed(() => {
   if (route.path.startsWith('/admin')) return '/admin'
+  if (route.path.startsWith('/interviews')) return '/interviews'
   if (route.path.startsWith('/interview')) return '/interview/select'
   return route.path
 })

@@ -113,6 +113,11 @@
           </template>
         </el-table-column>
       </el-table>
+      <div class="mt-4 flex justify-center">
+        <el-button type="primary" plain @click="router.push('/interviews')">
+          所有面试
+        </el-button>
+      </div>
     </el-card>
   </div>
 </template>
