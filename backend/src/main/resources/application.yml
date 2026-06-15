@@ -58,6 +58,14 @@ ai:
     port: 8000
     collection-prefix: ai_interview_
 
+# 代码沙箱（Piston）
+# 公共 API 自 2026-02-15 起需 PISTON_API_KEY；推荐自建实例并指向本地地址（无需 Key）
+# 公共: https://emkc.org/api/v2/piston/execute
+# 自建: http://localhost:2000/api/v2/execute
+piston:
+  api-url: ${PISTON_API_URL:https://emkc.org/api/v2/piston/execute}
+  api-key: ${PISTON_API_KEY:}
+
 app:
   upload-dir: ${UPLOAD_DIR:./uploads}
   share-base-url: ${SHARE_BASE_URL:http://localhost:5173/share}

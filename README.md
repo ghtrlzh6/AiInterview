@@ -392,6 +392,7 @@ cd frontend && npm run build
 | `docs/tech-stack.md` | 技术选型 |
 | `docs/development-plan.md` | 开发计划与 Sprint 任务 |
 | `docs/team-task-allocation.md` | 四人全栈分工与剩余任务（各管各模块前后端） |
+| `docs/project-management-economic-analysis-report.md` | 项目管理与经济分析报告 |
 | `docs/deployment.md` | 远端 MySQL + Nginx 生产部署指南 |
 
 ---
@@ -406,13 +407,99 @@ cd frontend && npm run build
 - [x] 四岗位差异化 Prompt 接入面试追问决策
 - [x] 面试体验重构：对话式面试官（先反馈再决策）、携带对话历史、真打字机流式、自我介绍开场、循序渐进出题、启发式模拟评分
 - [x] `demo_student` 演示账号与成长曲线历史数据
+- [x] **在线编程 IDE 重构**：LeetCode 风格手撕代码体验（Monaco Editor + Piston API 代码执行 + 测试用例评判）
 - [ ] 实际上线租服务器部署（按 deployment.md 执行）
 - [ ] DeepSeek API Key 配置（待提供密钥，可在管理后台填写；配置后评估/出题/RAG 自动切换真实模式）
 - [x] 移除 Redis 依赖，登出黑名单改为进程内内存存储（单机部署足够，重启后黑名单清空）
 
 ---
 
+## 在线编程 IDE（手撕代码）
+
+面试进入 **手撕代码** 环节时，界面切换为 **三栏布局**：
+
+| 区域 | 内容 |
+|------|------|
+| 左侧（300px） | AI 面试官对话 + 文字输入（说明思路/复杂度） |
+| 右侧主体 | **LeetCode 风格在线 IDE** |
+
+### IDE 功能
+
+- **题目描述**：完整的题目说明、输入/输出格式、示例（Markdown 渲染）
+- **测试用例**：每道题预置 3 个可见测试用例，显示输入、期望输出
+- **Monaco 编辑器**：支持语法高亮（Java / Python / C++ / JavaScript）
+- **起始代码**：切换语言自动加载对应语言的函数框架（I/O 已写好，只需填核心逻辑）
+- **运行示例**：用第一个测试用例调试，立即在控制台查看输出
+- **提交代码**：对所有测试用例评判，显示通过率（如 `3/3 通过`），结果保存至数据库
+- **提交记录**：历次提交状态、通过率，可一键重新加载
+
+### 已内置 LeetCode Hot 100 题目
+
+以下题目已配置完整的测试用例、输入/输出格式和多语言起始代码：
+
+| 题号 | 题目 | 难度 | 标签 |
+|------|------|------|------|
+| 001 | 两数之和 | 简单 | 数组、哈希 |
+| 003 | 无重复字符的最长子串 | 中等 | 字符串、滑动窗口 |
+| 005 | 最长回文子串 | 中等 | 字符串、DP |
+| 020 | 有效的括号 | 简单 | 栈、字符串 |
+| 053 | 最大子数组和 | 简单 | 数组、DP |
+| 070 | 爬楼梯 | 简单 | DP |
+| 104 | 二叉树的最大深度 | 简单 | 树、DFS |
+| 121 | 买卖股票的最佳时机 | 简单 | 数组、贪心 |
+| 198 | 打家劫舍 | 中等 | DP |
+| 206 | 反转链表 | 简单 | 链表 |
+| 300 | 最长递增子序列 | 中等 | DP |
+| 322 | 零钱兑换 | 中等 | DP |
+
+### 技术实现
+
+- **代码执行引擎**：[Piston](https://github.com/engineer-man/piston)（支持 Java/Python/C++/JavaScript）
+- **编辑器**：[Monaco Editor](https://microsoft.github.io/monaco-editor/) via `@guolao/vue-monaco-editor`
+- **测试判断**：对 stdout 逐行 trim 后精确匹配期望输出
+- **新增 API**：`POST /api/v1/coding/run`、`GET /api/v1/coding/{challengeId}`
+
+### 代码沙箱配置（重要）
+
+**公共 API `https://emkc.org` 自 2026-02-15 起需要授权 Token**，未配置会返回 **HTTP 401**。课设项目通常**拿不到**公共 Key，请在**自己的服务器自建 Piston**。
+
+| 环境变量 | 说明 |
+|----------|------|
+| `PISTON_API_URL` | 执行地址。自建默认 `http://127.0.0.1:2000/api/v2/execute`；公共为 `https://emkc.org/api/v2/piston/execute` |
+| `PISTON_API_KEY` | 仅使用公共 emkc 实例时填写（Authorization 头，一般为官方发放的 Token 字符串） |
+
+**推荐：服务器自建 Piston（无需 Key）**
+
+```bash
+# 1. 启动 Piston 容器（项目 docker-compose 已包含，或单独运行）
+docker run --privileged -d -p 2000:2000 --name ai-interview-piston --restart unless-stopped ghcr.io/engineer-man/piston
+
+# 2. 安装常用语言（首次需执行，容器内安装 java / python / gcc 等）
+docker exec ai-interview-piston piston ppman install python java gcc
+
+# 3. 验证
+curl -s http://127.0.0.1:2000/api/v2/runtimes | head
+
+# 4. 后端环境变量（写入 .env 或 systemd 环境）
+export PISTON_API_URL=http://127.0.0.1:2000/api/v2/execute
+# 重启 Spring Boot 后端
+```
+
+> 注意：自建实例 API 路径是 `/api/v2/execute`，公共实例是 `/api/v2/piston/execute`，两者不同。
+
+### 部署新功能
+
+```bash
+# 执行数据库补丁（添加 judge_config、starter_code 等字段）
+mysql -u root -p ai_interview < sql/patch-coding-judge.sql
+```
+
+---
+
 ## 常见问题
+
+**Q: 提交代码报「HTTP 401」或「代码执行服务未授权」？**  
+A: 公共 Piston API 现已需要 Token。请在服务器自建 Piston 并设置 `PISTON_API_URL=http://127.0.0.1:2000/api/v2/execute`，或向官方申请 `PISTON_API_KEY`（课设项目通常建议自建）。
 
 **Q: 面试 AI 回复是固定模板？**  
 A: 未配置 `LLM_API_KEY` 时使用内置模拟面试官（会对回答给出自然反馈并按节奏推进，非死板模板）。在管理后台 AI 配置页填入 Key 即可切换为真实大模型，对话与评分会更贴合回答内容

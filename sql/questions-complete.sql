@@ -66,12 +66,12 @@ INSERT INTO t_question (position_code, primary_kb_module_id, title, answer_refer
 ('WEB_FRONTEND', NULL, '你在项目中是如何做性能优化的？请举具体例子说明。', '定位瓶颈、优化方案、效果验证、数据对比', 3, 'PROJECT_DEEP', '项目经验', 'MANUAL'),
 ('WEB_FRONTEND', NULL, '你有参与过线上问题排查吗？请描述一次印象深刻的排查经历。', '问题现象、排查思路、定位过程、解决方案、复盘', 2, 'PROJECT_DEEP', '项目经验', 'MANUAL'),
 ('WEB_FRONTEND', NULL, '请讲讲你做过的最有成就感的项目，你在其中扮演了什么角色？', '项目背景、个人贡献、遇到困难、解决过程、成果与收获', 2, 'PROJECT_DEEP', '项目经验', 'MANUAL'),
--- BEHAVIOR (5题)
-('WEB_FRONTEND', NULL, '请用 JS 实现「防抖」函数', '定时器、闭包、this、args', 1, 'BEHAVIOR', '算法', 'MANUAL'),
-('WEB_FRONTEND', NULL, '请用 JS 实现「节流」函数', '时间戳或定时器', 1, 'BEHAVIOR', '算法', 'MANUAL'),
-('WEB_FRONTEND', NULL, '请实现「数组去重」的多种方案', 'Set、filter、Map、reduce', 1, 'BEHAVIOR', '算法', 'MANUAL'),
-('WEB_FRONTEND', NULL, '请实现「深拷贝」', '递归、JSON、考虑循环引用', 2, 'BEHAVIOR', '算法', 'MANUAL'),
-('WEB_FRONTEND', NULL, '请实现「Promise.all」', '遍历传入数组、收集结果、状态处理', 2, 'BEHAVIOR', '算法', 'MANUAL');
+-- BEHAVIOR (5题) — 全部 LeetCode Hot 100
+('WEB_FRONTEND', NULL, '请实现「两数之和」', '哈希表 O(n) 解法', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
+('WEB_FRONTEND', NULL, '请实现「无重复字符的最长子串」', '滑动窗口 O(n)', 2, 'BEHAVIOR', '算法', 'LC_HOT100'),
+('WEB_FRONTEND', NULL, '请实现「有效的括号」', '栈匹配', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
+('WEB_FRONTEND', NULL, '请实现「最大子数组和」', 'Kadane 算法 O(n)', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
+('WEB_FRONTEND', NULL, '请实现「爬楼梯」', '动态规划 / 斐波那契', 1, 'BEHAVIOR', '算法', 'LC_HOT100');
 
 -- ========================================
 -- 3. PYTHON_ALGO 岗位题库（25题）
@@ -105,7 +105,7 @@ INSERT INTO t_question (position_code, primary_kb_module_id, title, answer_refer
 ('PYTHON_ALGO', NULL, '请实现「最长回文子串」', '动态规划或中心扩散', 2, 'BEHAVIOR', '算法', 'LC_HOT100'),
 ('PYTHON_ALGO', NULL, '请实现「二叉树的最大深度」', '递归或 BFS', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
 ('PYTHON_ALGO', NULL, '请实现「买卖股票的最佳时机」', '一次遍历记录最小值', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
-('PYTHON_ALGO', NULL, '请实现「快速排序」', '分治、基准选择、分区', 2, 'BEHAVIOR', '算法', 'MANUAL');
+('PYTHON_ALGO', NULL, '请实现「最长递增子序列」', 'DP O(n²) 或二分 O(n log n)', 2, 'BEHAVIOR', '算法', 'LC_HOT100');
 
 -- ========================================
 -- 4. GAME_CLIENT 岗位题库（25题）
@@ -134,9 +134,9 @@ INSERT INTO t_question (position_code, primary_kb_module_id, title, answer_refer
 ('GAME_CLIENT', NULL, '你在游戏项目中是如何做性能优化的？请举具体例子。', '性能分析、定位瓶颈、优化方案、效果验证', 3, 'PROJECT_DEEP', '项目经验', 'MANUAL'),
 ('GAME_CLIENT', NULL, '你有参与过游戏线上问题排查吗？请描述一次印象深刻的经历。', '问题现象、排查思路、定位过程、解决方案、复盘', 2, 'PROJECT_DEEP', '项目经验', 'MANUAL'),
 ('GAME_CLIENT', NULL, '请讲讲你做过的最有成就感的游戏项目，你在其中扮演了什么角色？', '项目背景、个人贡献、遇到困难、解决过程、成果与收获', 2, 'PROJECT_DEEP', '项目经验', 'MANUAL'),
--- BEHAVIOR (5题)
-('GAME_CLIENT', NULL, '请实现「A* 寻路算法」', '启发式搜索、Open/Close列表、G/H/F值', 3, 'BEHAVIOR', '算法', 'MANUAL'),
-('GAME_CLIENT', NULL, '请实现「简单的对象池」', '对象池类、获取/回收、预分配', 2, 'BEHAVIOR', '算法', 'MANUAL'),
-('GAME_CLIENT', NULL, '请实现「冒泡排序」', '基础排序、O(n²)', 1, 'BEHAVIOR', '算法', 'MANUAL'),
-('GAME_CLIENT', NULL, '请实现「二分查找」', '有序数组、边界条件', 1, 'BEHAVIOR', '算法', 'MANUAL'),
-('GAME_CLIENT', NULL, '请实现「单例模式」', '线程安全、饿汉/懒汉', 2, 'BEHAVIOR', '设计模式', 'MANUAL');
+-- BEHAVIOR (5题) — 全部 LeetCode Hot 100
+('GAME_CLIENT', NULL, '请实现「反转链表」', '迭代或递归', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
+('GAME_CLIENT', NULL, '请实现「环形链表」', '快慢指针 / Floyd', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
+('GAME_CLIENT', NULL, '请实现「二叉树的最大深度」', '递归 DFS 或 BFS', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
+('GAME_CLIENT', NULL, '请实现「打家劫舍」', '动态规划', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
+('GAME_CLIENT', NULL, '请实现「最长递增子序列」', 'DP 或二分搜索', 2, 'BEHAVIOR', '算法', 'LC_HOT100');
