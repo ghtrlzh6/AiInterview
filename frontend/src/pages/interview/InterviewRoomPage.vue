@@ -155,6 +155,25 @@
       </div>
     </template>
   </div>
+  <!-- 摄像头悬浮窗 -->
+  <div v-show="cameraEnabled" class="camera-preview">
+    <video
+      ref="videoRef"
+      autoplay
+      playsinline
+      muted
+    />
+  </div>
+
+  <!-- 摄像头开关 -->
+  <el-button
+    class="camera-toggle"
+    circle
+    size="large"
+    @click="toggleCamera"
+  >
+    📷
+  </el-button>
 </template>
 
 <script setup lang="ts">
@@ -166,6 +185,10 @@ import { useInterviewStore } from '@/stores/interview'
 import ConnectionStatus from '@/components/ConnectionStatus.vue'
 import VoiceInput from '@/components/VoiceInput.vue'
 import CodingPanel from '@/components/CodingPanel.vue'
+const videoRef = ref<HTMLVideoElement>()
+const cameraEnabled = ref(false)
+
+let mediaStream: MediaStream | null = null
 
 const route    = useRoute()
 const router   = useRouter()
@@ -177,6 +200,48 @@ let timerId = 0
 
 const sessionId = computed(() => Number(route.params.sessionId))
 const elapsedTimeText = computed(() => formatElapsedTime(elapsedSeconds.value))
+
+async function startCamera() {
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: false
+    });
+
+    await nextTick();
+
+    if (videoRef.value) {
+      console.log('Video element found:', videoRef.value); // 检查是否拿到 DOM
+      videoRef.value.srcObject = mediaStream;
+      
+      // 增加错误监听，查看浏览器是否有报错
+      videoRef.value.onloadedmetadata = () => {
+        console.log('Metadata loaded');
+        videoRef.value?.play().catch(e => console.error('Play failed:', e));
+      };
+    } else {
+      console.error('videoRef.value is undefined/null');
+    }
+
+    cameraEnabled.value = true;
+  } catch (err) {
+    console.error('Camera error:', err);
+  }
+}
+
+function stopCamera() {
+  mediaStream?.getTracks().forEach(track => track.stop())
+  mediaStream = null
+  cameraEnabled.value = false
+}
+
+async function toggleCamera() {
+  if (cameraEnabled.value) {
+    stopCamera()
+  } else {
+    await startCamera()
+  }
+}
 
 function renderMarkdown(text: string) {
   return marked.parse(text || '', { async: false }) as string
@@ -297,6 +362,7 @@ async function handleEnd() {
 
 onMounted(async () => {
   startRoomTimer()
+  await startCamera()
   if (interview.sessionId === sessionId.value && interview.messages.length) {
     if (interview.interviewEnded) goEndPage()
     return
@@ -311,6 +377,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  stopCamera()
   if (timerId) {
     window.clearInterval(timerId)
     timerId = 0
@@ -321,6 +388,41 @@ onUnmounted(() => {
 <style scoped>
 .interview-room {
   min-height: calc(100vh - 1rem);
+}
+.camera-preview {
+  position: fixed;
+
+  top: 90px;
+  right: 20px;
+
+  width: 320px;
+  height: 200px;
+
+  z-index: 1000;
+
+  overflow: hidden;
+
+  border-radius: 12px;
+  background: #000;
+
+  box-shadow:
+    0 4px 16px rgba(0,0,0,.2);
+}
+
+.camera-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+
+.camera-toggle {
+  position: fixed;
+
+  top: 300px;
+  right: 20px;
+
+  z-index: 1001;
 }
 
 /* =============================
