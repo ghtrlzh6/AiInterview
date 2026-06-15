@@ -7,8 +7,13 @@ import com.aiinterview.util.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 @Tag(name = "报告")
@@ -32,6 +37,20 @@ public class ReportController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String positionCode) {
         return Result.success(reportService.listReports(SecurityUtils.currentUserId(), page, size, positionCode));
+    }
+
+    @Operation(summary = "下载报告 PDF")
+    @GetMapping("/{reportId}/download")
+    public ResponseEntity<byte[]> download(@PathVariable Long reportId) {
+        byte[] pdf = reportService.downloadReportPdf(SecurityUtils.currentUserId(), reportId);
+        String filename = "interview-report-" + reportId + ".pdf";
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(filename, StandardCharsets.UTF_8)
+                        .build()
+                        .toString())
+                .body(pdf);
     }
 
     @Operation(summary = "生成分享链接")

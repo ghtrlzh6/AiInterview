@@ -19,6 +19,12 @@ export function listReports(params?: { page?: number; size?: number; positionCod
   return request.get<unknown, PageResult<ReportListItem>>('/reports', { params })
 }
 
+export function downloadReportPdf(reportId: number) {
+  return request.get<unknown, Blob>(`/reports/${reportId}/download`, {
+    responseType: 'blob',
+  })
+}
+
 export function shareReport(reportId: number) {
   return request.post<unknown, { shareToken: string; shareUrl: string }>(
     `/reports/${reportId}/share`,

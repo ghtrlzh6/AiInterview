@@ -31,6 +31,16 @@ services:
     environment:
       - IS_PERSISTENT=TRUE
 
+  # 代码沙箱（手撕代码运行，可选）
+  # 启动后需安装语言运行时，见 README「自建 Piston」章节
+  piston:
+    image: ghcr.io/engineer-man/piston
+    container_name: ai-interview-piston
+    privileged: true
+    ports:
+      - "2000:2000"
+    restart: unless-stopped
+
 volumes:
   mysql_data:
   chroma_data:

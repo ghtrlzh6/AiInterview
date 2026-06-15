@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -24,4 +25,12 @@ public class CodingChallenge extends BaseEntity {
 
     private String answerHintMd;
     private Integer isActive;
+
+    /** 评判配置：testCases / inputFormat / outputFormat / timeLimit */
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private Map<String, Object> judgeConfig;
+
+    /** 各语言起始代码模板 {java, python, cpp, javascript} */
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private Map<String, String> starterCode;
 }

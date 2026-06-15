@@ -16,6 +16,7 @@
         <el-col :span="12">
           <el-form-item label="题目数量">
             <el-slider v-model="questionCount" :min="3" :max="15" show-input />
+            <div class="mt-2 text-sm text-slate-500">预计时长：{{ estimatedDuration }}</div>
           </el-form-item>
         </el-col>
       </el-row>
@@ -74,7 +75,7 @@
 
     <div v-loading="loading" class="grid gap-4 md:grid-cols-2">
       <el-card
-        v-for="pos in positions"
+        v-for="pos in pagedPositions"
         :key="pos.code"
         shadow="hover"
         class="cursor-pointer transition hover:ring-2 hover:ring-indigo-400"
@@ -94,6 +95,16 @@
           </el-icon>
         </div>
       </el-card>
+    </div>
+
+    <div v-if="positions.length > positionPageSize" class="mt-6 flex justify-center">
+      <el-pagination
+        v-model:current-page="positionPage"
+        background
+        layout="prev, pager, next"
+        :page-size="positionPageSize"
+        :total="positions.length"
+      />
     </div>
 
     <div class="mt-8 flex justify-center">
@@ -125,6 +136,8 @@ const interview = useInterviewStore()
 const loading = ref(true)
 const starting = ref(false)
 const positions = ref<Position[]>([])
+const positionPage = ref(1)
+const positionPageSize = 4
 const selected = ref('')
 const questionCount = ref(8)
 const resumeLoading = ref(false)
@@ -132,6 +145,17 @@ const resumeUploading = ref(false)
 const resumeStatus = ref<ResumeStatus | null>(null)
 const resumeProjects = ref<ResumeProject[]>([])
 const selectedResumeId = ref(0)
+
+const estimatedDuration = computed(() => {
+  const min = Math.max(10, questionCount.value * 3)
+  const max = Math.max(min + 5, questionCount.value * 5)
+  return `${min}-${max} 分钟`
+})
+
+const pagedPositions = computed(() => {
+  const start = (positionPage.value - 1) * positionPageSize
+  return positions.value.slice(start, start + positionPageSize)
+})
 
 const resumeTagType = computed(() => {
   if (resumeStatus.value?.parseStatus === 'SUCCESS') return 'success'
@@ -152,7 +176,7 @@ onMounted(async () => {
     const active = await interview.loadActive()
     if (active?.sessionId) {
       ElMessage.warning('你还有未完成的面试，请先继续或结束当前面试')
-      router.replace({ name: 'interview-room', params: { sessionId: String(active.sessionId) } })
+      router.replace({ name: 'interview-prepare', params: { sessionId: String(active.sessionId) } })
       return
     }
     await Promise.all([loadPositions(), loadLatestResume()])
@@ -163,6 +187,7 @@ onMounted(async () => {
 
 async function loadPositions() {
   positions.value = await positionApi.listPositions()
+  positionPage.value = 1
 }
 
 async function loadLatestResume() {
@@ -195,12 +220,12 @@ async function startInterview() {
       questionCount: questionCount.value,
       resumeSnapshotId: selectedResumeId.value || undefined,
     })
-    router.push({ name: 'interview-room', params: { sessionId: String(res.sessionId) } })
+    router.push({ name: 'interview-prepare', params: { sessionId: String(res.sessionId) } })
   } catch {
     const active = await interview.loadActive()
     if (active?.sessionId) {
       ElMessage.warning('你还有未完成的面试，请先继续或结束当前面试')
-      router.replace({ name: "interview-room", params: { sessionId: String(active.sessionId) } })
+      router.replace({ name: 'interview-prepare', params: { sessionId: String(active.sessionId) } })
     } else {
       ElMessage.error('创建面试失败')
     }
@@ -259,4 +284,5 @@ async function applyParsedResume(resumeId: number) {
   flex-wrap: wrap;
   gap: 12px;
 }
+
 </style>

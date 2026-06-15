@@ -87,3 +87,57 @@ export function convertAsr(formData: FormData) {
     { text: string; duration: number; confidence: number; isMock?: boolean }
   >('/asr/convert', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
 }
+
+export interface TestCaseResult {
+  index: number
+  description: string
+  input: string
+  expected: string
+  actual: string
+  passed: boolean
+  error?: string
+}
+
+export interface CodeRunResult {
+  mode: 'run' | 'submit'
+  stdout?: string
+  stderr?: string
+  exitCode?: number
+  error?: string
+  sampleInput?: string
+  passed?: number
+  total?: number
+  allPassed?: boolean
+  runStatus?: string
+  testResults?: TestCaseResult[]
+}
+
+/** 运行代码（run=调试, submit=正式提交） */
+export function runCode(data: {
+  challengeId: number | null
+  sessionId?: number
+  questionId?: number
+  language: string
+  code: string
+  mode: 'run' | 'submit'
+}) {
+  return request.post<unknown, CodeRunResult>('/coding/run', data)
+}
+
+/** 获取编程题详情（含测试用例和起始代码） */
+export function getChallengeDetail(challengeId: number) {
+  return request.get<unknown, {
+    id: number
+    title: string
+    problemMd?: string
+    difficulty?: number
+    tags?: string[]
+    judgeConfig?: {
+      testCases?: { input: string; expected: string; description?: string }[]
+      inputFormat?: string
+      outputFormat?: string
+      timeLimit?: number
+    }
+    starterCode?: Record<string, string>
+  }>(`/coding/${challengeId}`)
+}

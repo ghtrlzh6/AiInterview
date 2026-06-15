@@ -500,11 +500,11 @@ INSERT INTO t_question (position_code, primary_kb_module_id, title, answer_refer
 ('WEB_FRONTEND', NULL, '你在项目中是如何做性能优化的？请举具体例子说明。', '定位瓶颈、优化方案、效果验证、数据对比', 3, 'PROJECT_DEEP', '项目经验', 'MANUAL'),
 ('WEB_FRONTEND', NULL, '你有参与过线上问题排查吗？请描述一次印象深刻的排查经历。', '问题现象、排查思路、定位过程、解决方案、复盘', 2, 'PROJECT_DEEP', '项目经验', 'MANUAL'),
 ('WEB_FRONTEND', NULL, '请讲讲你做过的最有成就感的项目，你在其中扮演了什么角色？', '项目背景、个人贡献、遇到困难、解决过程、成果与收获', 2, 'PROJECT_DEEP', '项目经验', 'MANUAL'),
-('WEB_FRONTEND', NULL, '请用 JS 实现「防抖」函数', '定时器、闭包、this、args', 1, 'BEHAVIOR', '算法', 'MANUAL'),
-('WEB_FRONTEND', NULL, '请用 JS 实现「节流」函数', '时间戳或定时器', 1, 'BEHAVIOR', '算法', 'MANUAL'),
-('WEB_FRONTEND', NULL, '请实现「数组去重」的多种方案', 'Set、filter、Map、reduce', 1, 'BEHAVIOR', '算法', 'MANUAL'),
-('WEB_FRONTEND', NULL, '请实现「深拷贝」', '递归、JSON、考虑循环引用', 2, 'BEHAVIOR', '算法', 'MANUAL'),
-('WEB_FRONTEND', NULL, '请实现「Promise.all」', '遍历传入数组、收集结果、状态处理', 2, 'BEHAVIOR', '算法', 'MANUAL');
+('WEB_FRONTEND', NULL, '请实现「两数之和」', '哈希表 O(n) 解法', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
+('WEB_FRONTEND', NULL, '请实现「无重复字符的最长子串」', '滑动窗口 O(n)', 2, 'BEHAVIOR', '算法', 'LC_HOT100'),
+('WEB_FRONTEND', NULL, '请实现「有效的括号」', '栈匹配', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
+('WEB_FRONTEND', NULL, '请实现「最大子数组和」', 'Kadane 算法 O(n)', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
+('WEB_FRONTEND', NULL, '请实现「爬楼梯」', '动态规划 / 斐波那契', 1, 'BEHAVIOR', '算法', 'LC_HOT100');
 
 -- PYTHON_ALGO 25题
 INSERT INTO t_question (position_code, primary_kb_module_id, title, answer_reference, difficulty, question_type, topic, source) VALUES
@@ -532,7 +532,7 @@ INSERT INTO t_question (position_code, primary_kb_module_id, title, answer_refer
 ('PYTHON_ALGO', NULL, '请实现「最长回文子串」', '动态规划或中心扩散', 2, 'BEHAVIOR', '算法', 'LC_HOT100'),
 ('PYTHON_ALGO', NULL, '请实现「二叉树的最大深度」', '递归或 BFS', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
 ('PYTHON_ALGO', NULL, '请实现「买卖股票的最佳时机」', '一次遍历记录最小值', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
-('PYTHON_ALGO', NULL, '请实现「快速排序」', '分治、基准选择、分区', 2, 'BEHAVIOR', '算法', 'MANUAL');
+('PYTHON_ALGO', NULL, '请实现「最长递增子序列」', 'DP O(n²) 或二分 O(n log n)', 2, 'BEHAVIOR', '算法', 'LC_HOT100');
 
 -- GAME_CLIENT 25题
 INSERT INTO t_question (position_code, primary_kb_module_id, title, answer_reference, difficulty, question_type, topic, source) VALUES
@@ -556,52 +556,28 @@ INSERT INTO t_question (position_code, primary_kb_module_id, title, answer_refer
 ('GAME_CLIENT', NULL, '你在游戏项目中是如何做性能优化的？请举具体例子。', '性能分析、定位瓶颈、优化方案、效果验证', 3, 'PROJECT_DEEP', '项目经验', 'MANUAL'),
 ('GAME_CLIENT', NULL, '你有参与过游戏线上问题排查吗？请描述一次印象深刻的排查经历。', '问题现象、排查思路、定位过程、解决方案、复盘', 2, 'PROJECT_DEEP', '项目经验', 'MANUAL'),
 ('GAME_CLIENT', NULL, '请讲讲你做过的最有成就感的游戏项目，你在其中扮演了什么角色？', '项目背景、个人贡献、遇到困难、解决过程、成果与收获', 2, 'PROJECT_DEEP', '项目经验', 'MANUAL'),
-('GAME_CLIENT', NULL, '请实现「A* 寻路算法」', '启发式搜索、Open/Close列表、G/H/F值', 3, 'BEHAVIOR', '算法', 'MANUAL'),
-('GAME_CLIENT', NULL, '请实现「简单的对象池」', '对象池类、获取/回收、预分配', 2, 'BEHAVIOR', '算法', 'MANUAL'),
-('GAME_CLIENT', NULL, '请实现「冒泡排序」', '基础排序、O(n²)', 1, 'BEHAVIOR', '算法', 'MANUAL'),
-('GAME_CLIENT', NULL, '请实现「二分查找」', '有序数组、边界条件', 1, 'BEHAVIOR', '算法', 'MANUAL'),
-('GAME_CLIENT', NULL, '请实现「单例模式」', '线程安全、饿汉/懒汉', 2, 'BEHAVIOR', '设计模式', 'MANUAL');
+('GAME_CLIENT', NULL, '请实现「反转链表」', '迭代或递归', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
+('GAME_CLIENT', NULL, '请实现「环形链表」', '快慢指针 / Floyd', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
+('GAME_CLIENT', NULL, '请实现「二叉树的最大深度」', '递归 DFS 或 BFS', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
+('GAME_CLIENT', NULL, '请实现「打家劫舍」', '动态规划', 1, 'BEHAVIOR', '算法', 'LC_HOT100'),
+('GAME_CLIENT', NULL, '请实现「最长递增子序列」', 'DP 或二分搜索', 2, 'BEHAVIOR', '算法', 'LC_HOT100');
 
--- 关联手撕题与算法题池
-UPDATE t_question q
-JOIN t_coding_challenge c ON c.external_ref = 'Hot100-001'
-SET q.coding_challenge_id = c.id
-WHERE q.question_type = 'BEHAVIOR' AND q.title LIKE '%两数之和%';
-
-UPDATE t_question q
-JOIN t_coding_challenge c ON c.external_ref = 'Hot100-003'
-SET q.coding_challenge_id = c.id
-WHERE q.question_type = 'BEHAVIOR' AND q.title LIKE '%无重复字符的最长子串%';
-
-UPDATE t_question q
-JOIN t_coding_challenge c ON c.external_ref = 'Hot100-102'
-SET q.coding_challenge_id = c.id
-WHERE q.question_type = 'BEHAVIOR' AND q.title LIKE '%二叉树的层序遍历%';
-
-UPDATE t_question q
-JOIN t_coding_challenge c ON c.external_ref = 'Hot100-146'
-SET q.coding_challenge_id = c.id
-WHERE q.question_type = 'BEHAVIOR' AND q.title LIKE '%LRU缓存%';
-
-UPDATE t_question q
-JOIN t_coding_challenge c ON c.external_ref = 'Hot100-206'
-SET q.coding_challenge_id = c.id
-WHERE q.question_type = 'BEHAVIOR' AND q.title LIKE '%反转链表%';
-
-UPDATE t_question q
-JOIN t_coding_challenge c ON c.external_ref = 'Hot100-005'
-SET q.coding_challenge_id = c.id
-WHERE q.question_type = 'BEHAVIOR' AND q.title LIKE '%最长回文子串%';
-
-UPDATE t_question q
-JOIN t_coding_challenge c ON c.external_ref = 'Hot100-104'
-SET q.coding_challenge_id = c.id
-WHERE q.question_type = 'BEHAVIOR' AND q.title LIKE '%二叉树的最大深度%';
-
-UPDATE t_question q
-JOIN t_coding_challenge c ON c.external_ref = 'Hot100-121'
-SET q.coding_challenge_id = c.id
-WHERE q.question_type = 'BEHAVIOR' AND q.title LIKE '%买卖股票的最佳时机%';
+-- 关联手撕题与 Hot100 题池（仅 LC_HOT100 来源的 BEHAVIOR 题）
+UPDATE t_question q JOIN t_coding_challenge c ON c.external_ref = 'Hot100-001' SET q.coding_challenge_id = c.id WHERE q.question_type = 'BEHAVIOR' AND q.source = 'LC_HOT100' AND q.title LIKE '%两数之和%';
+UPDATE t_question q JOIN t_coding_challenge c ON c.external_ref = 'Hot100-003' SET q.coding_challenge_id = c.id WHERE q.question_type = 'BEHAVIOR' AND q.source = 'LC_HOT100' AND q.title LIKE '%无重复字符的最长子串%';
+UPDATE t_question q JOIN t_coding_challenge c ON c.external_ref = 'Hot100-005' SET q.coding_challenge_id = c.id WHERE q.question_type = 'BEHAVIOR' AND q.source = 'LC_HOT100' AND q.title LIKE '%最长回文子串%';
+UPDATE t_question q JOIN t_coding_challenge c ON c.external_ref = 'Hot100-020' SET q.coding_challenge_id = c.id WHERE q.question_type = 'BEHAVIOR' AND q.source = 'LC_HOT100' AND q.title LIKE '%有效的括号%';
+UPDATE t_question q JOIN t_coding_challenge c ON c.external_ref = 'Hot100-053' SET q.coding_challenge_id = c.id WHERE q.question_type = 'BEHAVIOR' AND q.source = 'LC_HOT100' AND q.title LIKE '%最大子数组和%';
+UPDATE t_question q JOIN t_coding_challenge c ON c.external_ref = 'Hot100-070' SET q.coding_challenge_id = c.id WHERE q.question_type = 'BEHAVIOR' AND q.source = 'LC_HOT100' AND q.title LIKE '%爬楼梯%';
+UPDATE t_question q JOIN t_coding_challenge c ON c.external_ref = 'Hot100-102' SET q.coding_challenge_id = c.id WHERE q.question_type = 'BEHAVIOR' AND q.source = 'LC_HOT100' AND q.title LIKE '%二叉树的层序遍历%';
+UPDATE t_question q JOIN t_coding_challenge c ON c.external_ref = 'Hot100-104' SET q.coding_challenge_id = c.id WHERE q.question_type = 'BEHAVIOR' AND q.source = 'LC_HOT100' AND q.title LIKE '%二叉树的最大深度%';
+UPDATE t_question q JOIN t_coding_challenge c ON c.external_ref = 'Hot100-121' SET q.coding_challenge_id = c.id WHERE q.question_type = 'BEHAVIOR' AND q.source = 'LC_HOT100' AND q.title LIKE '%买卖股票的最佳时机%';
+UPDATE t_question q JOIN t_coding_challenge c ON c.external_ref = 'Hot100-141' SET q.coding_challenge_id = c.id WHERE q.question_type = 'BEHAVIOR' AND q.source = 'LC_HOT100' AND q.title LIKE '%环形链表%';
+UPDATE t_question q JOIN t_coding_challenge c ON c.external_ref = 'Hot100-146' SET q.coding_challenge_id = c.id WHERE q.question_type = 'BEHAVIOR' AND q.source = 'LC_HOT100' AND q.title LIKE '%LRU缓存%';
+UPDATE t_question q JOIN t_coding_challenge c ON c.external_ref = 'Hot100-198' SET q.coding_challenge_id = c.id WHERE q.question_type = 'BEHAVIOR' AND q.source = 'LC_HOT100' AND q.title LIKE '%打家劫舍%';
+UPDATE t_question q JOIN t_coding_challenge c ON c.external_ref = 'Hot100-206' SET q.coding_challenge_id = c.id WHERE q.question_type = 'BEHAVIOR' AND q.source = 'LC_HOT100' AND q.title LIKE '%反转链表%';
+UPDATE t_question q JOIN t_coding_challenge c ON c.external_ref = 'Hot100-300' SET q.coding_challenge_id = c.id WHERE q.question_type = 'BEHAVIOR' AND q.source = 'LC_HOT100' AND q.title LIKE '%最长递增子序列%';
+UPDATE t_question q JOIN t_coding_challenge c ON c.external_ref = 'Hot100-322' SET q.coding_challenge_id = c.id WHERE q.question_type = 'BEHAVIOR' AND q.source = 'LC_HOT100' AND q.title LIKE '%零钱兑换%';
 
 INSERT INTO t_question_kb_point (question_id, kb_node_id)
 SELECT q.id, 4 FROM t_question q WHERE q.position_code = 'JAVA_BACKEND' AND q.title LIKE '%JVM 内存模型%' LIMIT 1;

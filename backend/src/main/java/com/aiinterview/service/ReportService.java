@@ -10,6 +10,8 @@ public interface ReportService {
 
     PageResult<Map<String, Object>> listReports(Long userId, int page, int size, String positionCode);
 
+    byte[] downloadReportPdf(Long userId, Long reportId);
+
     Map<String, Object> share(Long userId, Long reportId);
 
     Map<String, Object> getByShareToken(String token);

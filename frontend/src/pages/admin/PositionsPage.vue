@@ -59,6 +59,9 @@ async function load() {
 }
 
 function openDialog(row?: Position) {
+  Object.keys(form).forEach((key) => {
+    delete form[key as keyof Position]
+  })
   Object.assign(form, row || { code: '', name: '', description: '' })
   visible.value = true
 }
