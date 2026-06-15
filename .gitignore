@@ -3,6 +3,7 @@
 uploads/
 .vite/
 scripts/
+outputs/
 backend/target/
 backend/uploads/
 frontend/node_modules/
@@ -10,3 +11,4 @@ frontend/dist/
 .idea/
 .vscode/
 *.iml
+docs/report.md

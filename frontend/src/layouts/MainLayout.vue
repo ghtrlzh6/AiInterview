@@ -86,7 +86,7 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const avatarUrl = computed(() => resolveUploadUrl(auth.userInfo?.avatarUrl))
-const isInterviewLocked = computed(() => route.name === 'interview-room')
+const isInterviewLocked = computed(() => route.name === 'interview-room' || route.name === 'interview-prepare')
 
 const activeMenu = computed(() => {
   if (route.path.startsWith('/admin')) return '/admin'

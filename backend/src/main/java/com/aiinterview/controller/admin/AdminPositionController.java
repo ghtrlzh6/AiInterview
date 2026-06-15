@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -43,6 +44,18 @@ public class AdminPositionController {
 
     @PostMapping
     public Result<Map<String, Object>> create(@RequestBody PositionRequest req) {
+        validateRequired(req);
+        String code = req.code.trim();
+        Position existing = positionMapper.selectAnyByCode(code);
+        if (existing != null) {
+            if (existing.getIsDeleted() == null || existing.getIsDeleted() == 0) {
+                throw new BusinessException("岗位编码已存在");
+            }
+            Position restored = toEntity(req, existing);
+            restored.setCode(code);
+            positionMapper.restoreDeleted(restored);
+            return Result.success(Map.of("id", restored.getId()));
+        }
         Position p = toEntity(req, new Position());
         positionMapper.insert(p);
         return Result.success(Map.of("id", p.getId()));
@@ -73,14 +86,23 @@ public class AdminPositionController {
     }
 
     private Position toEntity(PositionRequest req, Position p) {
-        if (req.code != null) p.setCode(req.code);
-        if (req.name != null) p.setName(req.name);
+        if (StringUtils.hasText(req.code)) p.setCode(req.code.trim());
+        if (StringUtils.hasText(req.name)) p.setName(req.name.trim());
         if (req.description != null) p.setDescription(req.description);
         if (req.techStack != null) p.setTechStack(req.techStack);
         if (req.sortOrder != null) p.setSortOrder(req.sortOrder);
         if (req.iconUrl != null) p.setIconUrl(req.iconUrl);
         if (p.getIsActive() == null) p.setIsActive(1);
         return p;
+    }
+
+    private void validateRequired(PositionRequest req) {
+        if (req == null || !StringUtils.hasText(req.code)) {
+            throw new BusinessException("请填写岗位编码");
+        }
+        if (!StringUtils.hasText(req.name)) {
+            throw new BusinessException("请填写岗位名称");
+        }
     }
 
     @Data

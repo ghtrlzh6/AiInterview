@@ -99,6 +99,9 @@ async function load() {
 }
 
 function openDialog(row?: Record<string, unknown>) {
+  Object.keys(form).forEach((key) => {
+    delete form[key]
+  })
   Object.assign(form, row || { positionCode: '', questionType: 'TECH_KNOWLEDGE', difficulty: 2, title: '' })
   visible.value = true
 }

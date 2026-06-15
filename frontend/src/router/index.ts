@@ -22,6 +22,12 @@ const routes: RouteRecordRaw[] = [
         meta: { allowsActiveInterview: true },
       },
       {
+        path: 'interview/:sessionId/prepare',
+        name: 'interview-prepare',
+        component: () => import('@/pages/interview/InterviewPreparePage.vue'),
+        meta: { allowsActiveInterview: true },
+      },
+      {
         path: 'interview/:sessionId/end',
         name: 'interview-end',
         component: () => import('@/pages/interview/InterviewEndPage.vue'),
@@ -140,7 +146,7 @@ router.beforeEach(async (to, _from, next) => {
     try {
       const active = await interviewApi.getActiveInterview()
       if (active.active && active.sessionId) {
-        return next({ name: 'interview-room', params: { sessionId: String(active.sessionId) } })
+        return next({ name: 'interview-prepare', params: { sessionId: String(active.sessionId) } })
       }
     } catch {
       /* allow navigation if active-session lookup is temporarily unavailable */
