@@ -9,6 +9,13 @@
         <el-tag :type="report.reportStatus === 'COMPLETED' ? 'success' : 'warning'">
           {{ report.reportStatus }}
         </el-tag>
+        <el-button
+          v-if="report.reportStatus === 'COMPLETED'"
+          :loading="downloading"
+          @click="handleDownload"
+        >
+          下载PDF
+        </el-button>
         <el-button v-if="report.reportStatus === 'COMPLETED'" @click="handleShare">分享报告</el-button>
       </div>
     </div>
@@ -166,6 +173,7 @@ const route = useRoute()
 const reportId = computed(() => Number(route.params.reportId))
 const loading = ref(false)
 const recLoading = ref(false)
+const downloading = ref(false)
 const report = ref<ReportDetail | null>(null)
 const recommendations = ref<RecommendationItem[]>([])
 
@@ -211,6 +219,32 @@ async function handleShare() {
   } catch {
     ElMessage.success(`分享链接：${url}`)
   }
+}
+
+async function handleDownload() {
+  if (!report.value) return
+  downloading.value = true
+  try {
+    const blob = await reportApi.downloadReportPdf(reportId.value)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${safeFileName(report.value.positionName)}-面试报告.pdf`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    ElMessage.success('报告下载已开始')
+  } finally {
+    downloading.value = false
+  }
+}
+
+function safeFileName(value: string) {
+  return (value || 'AI模拟面试')
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 onMounted(loadReport)

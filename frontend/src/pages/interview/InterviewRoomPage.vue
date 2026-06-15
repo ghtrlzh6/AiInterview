@@ -8,6 +8,7 @@
           <span v-if="interview.currentQuestion">
             · 第 {{ interview.currentQuestion.questionOrder }} / {{ interview.totalQuestions }} 题
           </span>
+          <span> · 用时 {{ elapsedTimeText }}</span>
         </p>
       </div>
       <div class="flex items-center gap-3">
@@ -151,8 +152,11 @@ const codeText = ref('')
 const codeReview = ref('')
 const submittingCode = ref(false)
 const latestSubmitText = ref('')
+const elapsedSeconds = ref(0)
+let timerId = 0
 
 const sessionId = computed(() => Number(route.params.sessionId))
+const elapsedTimeText = computed(() => formatElapsedTime(elapsedSeconds.value))
 
 function renderMarkdown(text: string) {
   return marked.parse(text || '', { async: false }) as string
@@ -181,6 +185,36 @@ function scrollBottom() {
   nextTick(() => {
     if (chatBox.value) chatBox.value.scrollTop = chatBox.value.scrollHeight
   })
+}
+
+function formatElapsedTime(totalSeconds: number) {
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  const mm = String(minutes).padStart(2, '0')
+  const ss = String(seconds).padStart(2, '0')
+  if (!hours) return `${mm}:${ss}`
+  return `${String(hours).padStart(2, '0')}:${mm}:${ss}`
+}
+
+function getRoomStartedAt() {
+  const key = `interview-room-started-at:${sessionId.value}`
+  const saved = window.sessionStorage.getItem(key)
+  if (saved) return Number(saved)
+
+  const now = Date.now()
+  window.sessionStorage.setItem(key, String(now))
+  return now
+}
+
+function startRoomTimer() {
+  const startedAt = getRoomStartedAt()
+  const updateElapsed = () => {
+    elapsedSeconds.value = Math.max(0, Math.floor((Date.now() - startedAt) / 1000))
+  }
+
+  updateElapsed()
+  timerId = window.setInterval(updateElapsed, 1000)
 }
 
 watch(() => interview.messages.length, scrollBottom)
@@ -281,6 +315,7 @@ async function handleEnd() {
 }
 
 onMounted(async () => {
+  startRoomTimer()
   if (interview.sessionId === sessionId.value && interview.messages.length) {
     if (interview.interviewEnded) goEndPage()
     return
@@ -297,6 +332,10 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  if (timerId) {
+    window.clearInterval(timerId)
+    timerId = 0
+  }
   /* keep session for end page */
 })
 </script>
