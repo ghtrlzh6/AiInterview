@@ -18,6 +18,13 @@
           结束面试
         </el-button>
       </div>
+      <el-button
+        circle
+        class="settings-btn"
+        @click="showSettings = !showSettings"
+      >
+        ⚙
+      </el-button>
     </div>
 
     <!-- 手撕代码模式：全宽三列布局 -->
@@ -165,15 +172,25 @@
     />
   </div>
 
-  <!-- 摄像头开关 -->
-  <el-button
-    class="camera-toggle"
-    circle
-    size="large"
-    @click="toggleCamera"
-  >
-    📷
-  </el-button>
+  <!-- 设置面板 -->
+  <transition name="fade">
+    <div v-show="showSettings" class="settings-panel">
+      <div class="setting-row">
+        <span>🎤 AI语音</span>
+        <el-switch v-model="ttsEnabled" />
+      </div>
+
+      <div class="setting-row">
+        <span>👧 看板娘</span>
+        <el-switch v-model="live2dEnabled" />
+      </div>
+
+      <div class="setting-row">
+        <span>📷 摄像头</span>
+        <el-switch v-model="cameraEnabled" />
+      </div>
+    </div>
+  </transition>
 </template>
 
 <script setup lang="ts">
@@ -186,7 +203,10 @@ import ConnectionStatus from '@/components/ConnectionStatus.vue'
 import VoiceInput from '@/components/VoiceInput.vue'
 import CodingPanel from '@/components/CodingPanel.vue'
 const videoRef = ref<HTMLVideoElement>()
-const cameraEnabled = ref(false)
+const ttsEnabled = ref(true)
+const live2dEnabled = ref(true)
+const cameraEnabled = ref(true)
+const showSettings = ref(false)
 
 let mediaStream: MediaStream | null = null
 
@@ -298,7 +318,10 @@ function startRoomTimer() {
 }
 
 function speak(text: string) {
-  if (!window.speechSynthesis) return
+
+  if (!ttsEnabled.value) {
+    return
+  }
 
   const utterance = new SpeechSynthesisUtterance(text)
 
@@ -337,6 +360,13 @@ watch(
     }
   }
 )
+watch(live2dEnabled, (enabled) => {
+  const live2d = document.getElementById('live2d-widget')
+
+  if (live2d) {
+    live2d.style.display = enabled ? 'block' : 'none'
+  }
+})
 watch(() => interview.streamingContent, scrollBottom)
 
 function onTranscribed(text: string) {
@@ -487,6 +517,64 @@ onUnmounted(() => {
   right: 20px;
 
   z-index: 1001;
+}
+
+.settings-btn {
+  position: fixed;
+  top: 40px;
+  right: 200px;
+
+  z-index: 10001;
+
+  width: 42px;
+  height: 42px;
+
+  font-size: 18px;
+}
+
+.settings-panel {
+  position: fixed;
+
+  top: 70px;
+  right: 20px;
+
+  width: 200px;
+
+  background: white;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+
+  padding: 12px;
+
+  z-index: 10000;
+
+  box-shadow:
+    0 8px 24px rgba(0,0,0,.12);
+}
+
+.setting-row {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 12px;
+}
+
+.setting-row:last-child {
+  margin-bottom: 0;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: all .2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
 /* =============================
