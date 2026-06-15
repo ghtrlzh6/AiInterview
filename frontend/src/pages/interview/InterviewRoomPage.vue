@@ -297,7 +297,46 @@ function startRoomTimer() {
   timerId = window.setInterval(updateElapsed, 1000)
 }
 
+function speak(text: string) {
+  if (!window.speechSynthesis) return
+
+  const utterance = new SpeechSynthesisUtterance(text)
+
+  const voices = speechSynthesis.getVoices()
+
+  utterance.voice =
+    voices.find(v => v.name.includes('Microsoft Xiaoyi')) || null
+
+  utterance.lang = 'zh-CN'
+  utterance.rate = 1.0
+  utterance.pitch = 1.0
+
+  speechSynthesis.cancel()
+  speechSynthesis.speak(utterance)
+}
+
+function cleanForSpeech(text: string) {
+  return text
+    .replace(/\*\*/g, '')
+    .replace(/#/g, '')
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/\n/g, ' ')
+}
+
 watch(() => interview.messages.length, scrollBottom)
+watch(
+  () => interview.messages.length,
+  () => {
+    const last =
+      interview.messages[
+        interview.messages.length - 1
+      ]
+
+    if (last?.role === 'ASSISTANT') {
+      speak(cleanForSpeech(last.content))
+    }
+  }
+)
 watch(() => interview.streamingContent, scrollBottom)
 
 function onTranscribed(text: string) {
@@ -363,6 +402,31 @@ async function handleEnd() {
 onMounted(async () => {
   startRoomTimer()
   await startCamera()
+    if ((window as any).L2Dwidget) {
+    ;(window as any).L2Dwidget.init({
+      model: {
+        jsonPath:
+          'https://unpkg.com/live2d-widget-model-shizuku@1.0.5/assets/shizuku.model.json'
+      },
+
+      display: {
+        position: 'right',
+        width: 180,
+        height: 300,
+        hOffset: 20,
+        vOffset: 20
+      },
+
+      mobile: {
+        show: true
+      },
+
+      react: {
+        opacityDefault: 1,
+        opacityOnHover: 1
+      }
+    })
+  }
   if (interview.sessionId === sessionId.value && interview.messages.length) {
     if (interview.interviewEnded) goEndPage()
     return
