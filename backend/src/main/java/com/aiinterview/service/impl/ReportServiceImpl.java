@@ -7,6 +7,7 @@ import com.aiinterview.entity.DimensionScore;
 import com.aiinterview.entity.EvaluationReport;
 import com.aiinterview.entity.Position;
 import com.aiinterview.entity.Question;
+import com.aiinterview.entity.ChatMessage;
 import com.aiinterview.mapper.*;
 import com.aiinterview.service.ReportService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -27,6 +28,7 @@ public class ReportServiceImpl implements ReportService {
     private final DimensionScoreMapper dimensionScoreMapper;
     private final QuestionMapper questionMapper;
     private final PositionMapper positionMapper;
+    private final ChatMessageMapper chatMessageMapper;
 
     @Value("${app.share-base-url:http://localhost/share}")
     private String shareBaseUrl;
@@ -116,9 +118,46 @@ public class ReportServiceImpl implements ReportService {
         List<Map<String, Object>> qScores = new ArrayList<>();
         for (DimensionScore ds : dsList) {
             Question q = questionMapper.selectById(ds.getQuestionId());
+            // ChatMessage userAnswer =
+            // chatMessageMapper.selectOne(
+            //         new LambdaQueryWrapper<ChatMessage>()
+            //                 .eq(ChatMessage::getSessionId, ds.getSessionId())
+            //                 .eq(ChatMessage::getQuestionId, ds.getQuestionId())
+            //                 .eq(ChatMessage::getRole, "USER")
+            //                 .orderByDesc(ChatMessage::getCreatedAt)
+            //                 .last("LIMIT 1")
+            // );
+            List<ChatMessage> answers =
+                    chatMessageMapper.selectList(
+                            new LambdaQueryWrapper<ChatMessage>()
+                                    .eq(ChatMessage::getSessionId, ds.getSessionId())
+                                    .eq(ChatMessage::getQuestionId, ds.getQuestionId())
+                                    .eq(ChatMessage::getRole, "USER")
+                                    .orderByAsc(ChatMessage::getCreatedAt)
+                    );
+
+            String userAnswer = answers.stream()
+                    .map(ChatMessage::getContent)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.joining("\n\n"));
+
             Map<String, Object> qs = new HashMap<>();
             qs.put("questionOrder", ds.getQuestionOrder());
             qs.put("questionTitle", q != null ? q.getTitle() : "");
+            // qs.put(
+            //         "userAnswer",
+            //         userAnswer != null
+            //                 ? userAnswer.getContent()
+            //                 : ""
+            // );
+            qs.put("userAnswer", userAnswer);
+            qs.put("referenceAnswer", q.getAnswerReference());
+            // qs.put(
+            //         "referenceAnswer",
+            //         q != null
+            //                 ? q.getAnswerReference()
+            //                 : ""
+            // );
             qs.put("techScore", ds.getTechScore());
             qs.put("logicScore", ds.getLogicScore());
             qs.put("depthScore", ds.getDepthScore());

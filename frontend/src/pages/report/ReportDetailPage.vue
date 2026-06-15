@@ -42,18 +42,84 @@
     </el-card>
 
     <el-card v-if="questionScores.length">
-      <template #header>逐题点评</template>
-      <div v-for="qs in questionScores" :key="qs.questionOrder" class="border-b py-4 last:border-0">
-        <div class="flex items-center gap-2 mb-2">
-          <el-tag size="small">第 {{ qs.questionOrder }} 题</el-tag>
-          <span class="font-medium text-sm">{{ qs.questionTitle }}</span>
+      <template #header>
+        <div class="flex items-center justify-between">
+          <span>逐题点评</span>
+          <span class="text-xs text-slate-500">
+            AI评分 + 回答回顾
+          </span>
         </div>
-        <div class="flex flex-wrap gap-3 text-xs text-slate-600 mb-2">
-          <span>技术 {{ qs.techScore ?? '-' }}</span>
-          <span>逻辑 {{ qs.logicScore ?? '-' }}</span>
-          <span>深度 {{ qs.depthScore ?? '-' }}</span>
+      </template>
+
+      <div
+        v-for="qs in questionScores"
+        :key="qs.questionOrder"
+        class="border-b py-6 last:border-0"
+      >
+        <!-- 题目 -->
+        <div class="flex items-center gap-2 mb-3">
+          <el-tag size="small">
+            第 {{ qs.questionOrder }} 题
+          </el-tag>
+
+          <span class="font-medium">
+            {{ qs.questionTitle }}
+          </span>
         </div>
-        <p class="text-sm text-slate-700">{{ qs.comment }}</p>
+
+        <!-- 分数 -->
+        <div class="flex flex-wrap gap-3 mb-4">
+          <el-tag type="primary">
+            技术 {{ qs.techScore ?? '-' }}
+          </el-tag>
+
+          <el-tag type="success">
+            逻辑 {{ qs.logicScore ?? '-' }}
+          </el-tag>
+
+          <el-tag type="warning">
+            深度 {{ qs.depthScore ?? '-' }}
+          </el-tag>
+        </div>
+
+        <!-- 用户回答 -->
+        <div class="mb-4">
+          <div class="text-xs text-slate-500 mb-2">
+            我的回答
+          </div>
+
+          <div
+            class="bg-slate-50 rounded-lg p-3 text-sm whitespace-pre-wrap border"
+          >
+            {{ qs.userAnswer || '暂无回答记录' }}
+          </div>
+        </div>
+
+        <!-- 参考答案 -->
+        <div class="mb-4">
+          <div class="text-xs text-green-700 mb-2">
+            参考答案
+          </div>
+
+          <div
+            class="bg-green-50 rounded-lg p-3 text-sm whitespace-pre-wrap border border-green-200"
+          >
+            {{ qs.referenceAnswer || '暂无参考答案' }}
+          </div>
+        </div>
+
+        <!-- AI点评 -->
+        <div>
+          <div class="text-xs text-blue-700 mb-2">
+            AI点评
+          </div>
+
+          <div
+            class="bg-blue-50 rounded-lg p-3 text-sm whitespace-pre-wrap border border-blue-200"
+          >
+            {{ qs.comment || '暂无点评' }}
+          </div>
+        </div>
       </div>
     </el-card>
 
