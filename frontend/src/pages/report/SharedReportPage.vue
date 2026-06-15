@@ -39,8 +39,6 @@
         <div class="markdown-body" v-html="summaryHtml" />
       </el-card>
 
-
-
       <el-card v-if="questionScores.length">
         <template #header>
           <div class="flex items-center justify-between">

@@ -135,13 +135,36 @@
       <div v-loading="recLoading">
         <el-empty v-if="!recommendations.length" description="暂无推荐" />
         <div v-for="item in recommendations" :key="item.recommendationId" class="border-b py-4 last:border-0">
-          <h3 class="font-semibold">{{ item.resource.title }}</h3>
+        <div class="flex items-center gap-2">
+          <h3 class="font-semibold">
+            {{ item.resource.title }}
+          </h3>
+
+          <el-tag size="small">
+            难度 {{ item.resource.difficulty }}
+          </el-tag>
+          <el-tag size="small">
+            主题 {{ item.resource.topic }}
+          </el-tag>
+        </div>
+
           <p class="text-sm text-slate-500 mt-1">{{ item.resource.description }}</p>
-          <p v-if="item.reason" class="text-xs text-indigo-600 mt-1">推荐原因：{{ item.reason }}</p>
+          <el-alert
+            v-if="item.reason"
+            :title="item.reason"
+            type="info"
+            :closable="false"
+            class="mt-2"
+          />
           <div class="mt-2 flex gap-2">
-            <el-button v-if="item.resource.url" type="primary" link :href="item.resource.url" target="_blank">
-              打开链接
-            </el-button>
+          <el-link
+            v-if="item.resource.url"
+            :href="item.resource.url"
+            target="_blank"
+            type="primary"
+          >
+            打开链接
+          </el-link>
             <el-button size="small" @click="feedback(item.recommendationId, true)">有帮助</el-button>
             <el-button size="small" @click="feedback(item.recommendationId, false)">没帮助</el-button>
           </div>
