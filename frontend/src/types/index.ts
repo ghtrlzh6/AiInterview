@@ -140,12 +140,28 @@ export interface ReportScores {
   confidence?: number
 }
 
+// export interface QuestionScore {
+//   questionOrder: number
+//   questionTitle: string
+//   techScore?: number
+//   logicScore?: number
+//   depthScore?: number
+//   comment?: string
+// }
+
 export interface QuestionScore {
   questionOrder: number
+
   questionTitle: string
+
+  userAnswer?: string
+
+  referenceAnswer?: string
+
   techScore?: number
   logicScore?: number
   depthScore?: number
+
   comment?: string
 }
 
