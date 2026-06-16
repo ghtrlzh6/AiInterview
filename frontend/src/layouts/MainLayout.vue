@@ -58,7 +58,7 @@
         <span class="font-medium text-slate-700 md:hidden">AI 模拟面试</span>
         <div class="flex items-center gap-4 ml-auto">
           <router-link to="/profile" class="flex items-center gap-2 no-underline">
-            <el-avatar :size="32" :src="avatarUrl" class="bg-indigo-100 text-indigo-600">
+            <el-avatar :size="32" :src="avatarUrl" class="bg-teal-50 text-teal-700">
               {{ auth.userInfo?.nickname?.charAt(0) || 'U' }}
             </el-avatar>
             <span class="text-sm text-slate-600 hover:text-brand-600">

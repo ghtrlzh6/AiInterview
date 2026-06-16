@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --el-color-primary: #4f46e5;
+  --el-color-primary: #0d9488;
 }
 
 body {
@@ -50,11 +50,11 @@ body {
 }
 
 .chat-bubble-assistant {
-  background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%);
-  border: 1px solid #e0e7ff;
+  background: linear-gradient(135deg, #f0fdfa 0%, #ffffff 100%);
+  border: 1px solid #ccfbf1;
 }
 
 .chat-bubble-user {
-  background: #4f46e5;
+  background: #0d9488;
   color: white;
 }
