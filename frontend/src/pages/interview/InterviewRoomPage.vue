@@ -255,13 +255,13 @@ function stopCamera() {
   cameraEnabled.value = false
 }
 
-async function toggleCamera() {
-  if (cameraEnabled.value) {
-    stopCamera()
+watch(cameraEnabled, (enabled) => {
+  if (enabled) {
+    void startCamera()
   } else {
-    await startCamera()
+    stopCamera()
   }
-}
+})
 
 function renderMarkdown(text: string) {
   return marked.parse(text || '', { async: false }) as string
@@ -344,16 +344,6 @@ function cleanForSpeech(text: string) {
     .replace(/#/g, '')
     .replace(/```[\s\S]*?```/g, '')
     .replace(/\n/g, ' ')
-}
-
-function showLive2D() {
-  const live2d =
-    document.getElementById('live2d-widget') ||
-    document.getElementById('live2dcanvas')
-
-  if (live2d) {
-    live2d.style.display = 'block'
-  }
 }
 
 function stopLive2D() {

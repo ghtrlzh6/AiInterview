@@ -19,6 +19,7 @@ export function feedbackRecommendation(recommendationId: number, isHelpful: bool
 }
 
 export function searchResources(params?: {
+  keyword?: string
   positionCode?: string
   topic?: string
   type?: string

@@ -234,6 +234,7 @@ export interface LearningResource {
   url?: string
   topic?: string
   positionCode?: string
+  difficulty?: number
 }
 
 export interface AdminStats {
