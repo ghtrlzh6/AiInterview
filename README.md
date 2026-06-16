@@ -471,11 +471,19 @@ cd frontend && npm run build
 **推荐：服务器自建 Piston（无需 Key）**
 
 ```bash
-# 1. 启动 Piston 容器（项目 docker-compose 已包含，或单独运行）
-docker run --privileged -d -p 2000:2000 --name ai-interview-piston --restart unless-stopped ghcr.io/engineer-man/piston
+# 1. 启动 Piston（推荐用 compose，已配置 /piston 挂载）
+mkdir -p data/piston
+docker compose up -d piston
 
-# 2. 安装常用语言（首次需执行，容器内安装 java / python / gcc 等）
-docker exec ai-interview-piston piston ppman install python java gcc
+# 或单独 docker run（必须挂载 /piston，否则会 chown 失败反复重启）
+mkdir -p data/piston
+docker run --privileged -d -p 2000:2000 --name ai-interview-piston --restart unless-stopped \
+  --tmpfs /tmp:exec -v "$(pwd)/data/piston:/piston" ghcr.io/engineer-man/piston
+
+# 2. 安装常用语言（首次需执行，一次装一种）
+docker exec ai-interview-piston piston ppman install python
+docker exec ai-interview-piston piston ppman install java
+docker exec ai-interview-piston piston ppman install gcc
 
 # 3. 验证
 curl -s http://127.0.0.1:2000/api/v2/runtimes | head
