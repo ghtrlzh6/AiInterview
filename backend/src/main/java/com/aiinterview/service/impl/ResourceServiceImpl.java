@@ -222,7 +222,7 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
-    public PageResult<Map<String, Object>> search(String positionCode, String topic, String type, int page, int size) {
+    public PageResult<Map<String, Object>> search(String keyword , String positionCode, String topic, String type, int page, int size) {
         LambdaQueryWrapper<LearningResource> wrapper = new LambdaQueryWrapper<LearningResource>()
                 .orderByDesc(LearningResource::getQualityScore);
         if (StringUtils.hasText(positionCode)) {
@@ -232,8 +232,19 @@ public class ResourceServiceImpl implements ResourceService {
         if (StringUtils.hasText(topic)) {
             wrapper.like(LearningResource::getTopic, topic);
         }
+        if (StringUtils.hasText(keyword)) {
+            wrapper.and(w -> w
+                    .like(LearningResource::getTitle, keyword)
+                    .or()
+                    .like(LearningResource::getDescription, keyword)
+                    .or()
+                    .like(LearningResource::getTopic, keyword));
+        }
         if (StringUtils.hasText(type)) {
-            wrapper.eq(LearningResource::getResourceType, type);
+            wrapper.eq(
+                LearningResource::getResourceType,
+                type
+            );
         }
         Page<LearningResource> p = resourceMapper.selectPage(new Page<>(page, size), wrapper);
         List<Map<String, Object>> list = p.getRecords().stream().map(r -> {

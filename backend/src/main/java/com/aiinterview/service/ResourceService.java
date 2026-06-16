@@ -10,5 +10,5 @@ public interface ResourceService {
 
     void feedback(Long userId, Long recommendationId, boolean isHelpful);
 
-    PageResult<Map<String, Object>> search(String positionCode, String topic, String type, int page, int size);
+    PageResult<Map<String, Object>> search(String keyword ,String positionCode, String topic, String type, int page, int size);
 }

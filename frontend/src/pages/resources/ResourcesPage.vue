@@ -1,7 +1,6 @@
 <template>
   <div class="max-w-5xl mx-auto space-y-6">
-    <h1 class="text-2xl font-bold">学习资源</h1>
-
+    <h1 class="text-2xl font-bold">我的学习资源</h1>
     <el-card v-if="reportIdFromQuery">
       <template #header>基于报告的推荐</template>
       <div v-loading="recLoading">
@@ -27,20 +26,77 @@
         <el-form-item>
           <el-input v-model="keyword" placeholder="主题关键词" clearable />
         </el-form-item>
+
+        <el-form-item>
+          <el-select
+            v-model="resourceType"
+            placeholder="资源类型"
+            clearable
+            style="width: 140px"
+          >
+            <el-option label="视频" value="VIDEO" />
+            <el-option label="课程" value="COURSE" />
+            <el-option label="文章" value="ARTICLE" />
+            <el-option label="书籍" value="BOOK" />
+          </el-select>
+        </el-form-item>
+
         <el-form-item>
           <el-button type="primary" @click="search">搜索</el-button>
         </el-form-item>
+
       </el-form>
-      <el-table v-loading="searchLoading" :data="searchResults" stripe>
-        <el-table-column prop="title" label="标题" />
-        <el-table-column prop="resourceType" label="类型" width="100" />
-        <el-table-column prop="topic" label="主题" width="120" />
-        <el-table-column label="链接" width="80">
-          <template #default="{ row }">
-            <el-link v-if="row.url" :href="row.url" target="_blank" type="primary">打开</el-link>
-          </template>
-        </el-table-column>
-      </el-table>
+      <el-row :gutter="20" v-loading="searchLoading">
+
+        <el-col
+          :span="8"
+          v-for="item in searchResults"
+          :key="item.id"
+        >
+
+          <el-card shadow="hover" class="mb-4">
+
+            <div class="flex justify-between items-center">
+
+              <span class="font-semibold">
+                {{ item.title }}
+              </span>
+
+              <el-tag
+                size="small"
+                :type="typeTagType[item.resourceType]"
+              >
+                {{ typeMap[item.resourceType] }}
+              </el-tag>
+
+            </div>
+
+            <p class="text-slate-500 text-sm mt-2 line-clamp-3">
+              {{ item.description }}
+            </p>
+
+            <div class="mt-3 flex justify-between items-center">
+
+              <el-tag size="small">
+                {{ item.topic }}
+              </el-tag>
+
+              <el-link
+                v-if="item.url"
+                :href="item.url"
+                target="_blank"
+                type="primary"
+              >
+                查看 →
+              </el-link>
+
+            </div>
+
+          </el-card>
+
+        </el-col>
+
+      </el-row>
     </el-card>
   </div>
 </template>
@@ -60,6 +116,20 @@ const recommendations = ref<RecommendationItem[]>([])
 const keyword = ref('')
 const searchLoading = ref(false)
 const searchResults = ref<LearningResource[]>([])
+const resourceType = ref('')
+const typeMap: Record<string, string> = {
+  VIDEO: '视频课程',
+  COURSE: '在线课程',
+  ARTICLE: '技术文章',
+  BOOK: '电子书'
+}
+
+const typeTagType: Record<string, any> = {
+  VIDEO: 'danger',
+  COURSE: 'success',
+  ARTICLE: 'primary',
+  BOOK: 'warning'
+}
 
 async function loadRecommendations() {
   if (!reportIdFromQuery.value) return
@@ -75,7 +145,12 @@ async function loadRecommendations() {
 async function search() {
   searchLoading.value = true
   try {
-    const res = await resourceApi.searchResources({ topic: keyword.value, page: 1, size: 20 })
+    const res = await resourceApi.searchResources({
+      keyword: keyword.value,
+      type: resourceType.value ,
+      page: 1,
+      size: 20
+    })
     searchResults.value = res.list
   } finally {
     searchLoading.value = false
@@ -91,4 +166,7 @@ onMounted(() => {
   loadRecommendations()
   search()
 })
+
 </script>
+
+

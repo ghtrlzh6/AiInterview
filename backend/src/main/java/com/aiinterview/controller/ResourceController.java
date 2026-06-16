@@ -36,12 +36,13 @@ public class ResourceController {
     @Operation(summary = "搜索资源")
     @GetMapping
     public Result<PageResult<Map<String, Object>>> search(
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String positionCode,
             @RequestParam(required = false) String topic,
             @RequestParam(required = false) String type,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return Result.success(resourceService.search(positionCode, topic, type, page, size));
+        return Result.success(resourceService.search(keyword,positionCode, topic, type, page, size));
     }
 
     @Data
