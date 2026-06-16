@@ -35,4 +35,4 @@ INSERT INTO t_learning_resource (position_code, title, description, resource_typ
 ('GAME_CLIENT', 'Unity Profiler 官方指南', 'CPU、GPU与内存分析', 'ARTICLE', 'https://docs.unity3d.com/Manual/Profiler.html', '性能优化', 2),
 ('GAME_CLIENT', 'Unity Mobile Optimization', '移动端性能优化最佳实践', 'ARTICLE', 'https://unity.com/how-to/mobile-game-optimization-tips-part-1', '性能优化', 3),
 ('GAME_CLIENT', 'Mirror Networking 官方文档', 'Unity多人联机开发', 'ARTICLE', 'https://mirror-networking.gitbook.io/docs/', '网络同步', 3),
-('GAME_CLIENT', 'Gaffer On Games Networking', '经典游戏网络同步理论', 'ARTICLE', 'https://gafferongames.com/', '网络同步', 3),
+('GAME_CLIENT', 'Gaffer On Games Networking', '经典游戏网络同步理论', 'ARTICLE', 'https://gafferongames.com/', '网络同步', 3);
