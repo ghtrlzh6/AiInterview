@@ -2,7 +2,7 @@
 *.log
 uploads/
 .vite/
-scripts/
+/scripts/
 outputs/
 backend/target/
 backend/uploads/
