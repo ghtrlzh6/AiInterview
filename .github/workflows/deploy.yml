@@ -1,0 +1,47 @@
+# 推送到 main/master 或手动触发后，SSH 登录阿里云 ECS 执行 deploy/scripts/deploy.sh
+#
+# 需在 GitHub 仓库 Settings → Secrets and variables → Actions 配置：
+#   SSH_HOST      服务器公网 IP
+#   SSH_USER      登录用户名（如 root）
+#   SSH_PRIVATE_KEY  与服务器 authorized_keys 配对的私钥（完整 PEM）
+#   SSH_PORT      可选，默认 22
+
+name: Deploy to Aliyun ECS
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout（仅用于显示版本信息，实际构建在服务器）
+        uses: actions/checkout@v4
+
+      - name: SSH 部署
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          command_timeout: 25m
+          script: |
+            set -e
+            APP_DIR="${{ vars.APP_DIR || '/opt/ai-interview' }}"
+            BRANCH="${{ github.ref_name }}"
+            cd "$APP_DIR"
+            git fetch origin "$BRANCH"
+            git reset --hard "origin/$BRANCH"
+            chmod +x deploy/scripts/deploy.sh
+            bash deploy/scripts/deploy.sh
