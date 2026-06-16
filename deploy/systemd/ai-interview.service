@@ -1,0 +1,15 @@
+[Unit]
+Description=AI Interview Backend (Spring Boot)
+After=network.target mysql.service docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/ai-interview/runtime
+EnvironmentFile=/opt/ai-interview/.env
+ExecStart=/usr/bin/java -jar /opt/ai-interview/runtime/ai-interview-backend-1.0.0-SNAPSHOT.jar
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
