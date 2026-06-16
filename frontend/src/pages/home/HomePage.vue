@@ -1,11 +1,11 @@
 <template>
   <div class="max-w-5xl mx-auto space-y-8">
-    <section class="rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white p-8 shadow-lg">
+    <section class="rounded-2xl bg-gradient-to-r from-slate-800 to-teal-700 text-white p-8 shadow-lg">
       <h1 class="text-3xl font-bold mb-2">
         你好，{{ auth.userInfo?.nickname || '同学' }}
       </h1>
-      <p class="text-indigo-100 mb-6">用 AI 模拟真实面试，多维度反馈助你快速成长</p>
-      <el-button size="large" type="warning" @click="router.push('/interview/select')">
+      <p class="text-teal-50 mb-6">用 AI 模拟真实面试，多维度反馈助你快速成长</p>
+      <el-button size="large" type="primary" @click="router.push('/interview/select')">
         开始模拟面试
       </el-button>
     </section>
@@ -36,9 +36,9 @@
 
     <el-row :gutter="16">
       <el-col :xs="24" :sm="8">
-        <el-card shadow="hover" class="cursor-pointer" @click="router.push('/reports')">
+        <el-card shadow="hover" class="cursor-pointer border-0 shadow-sm" @click="router.push('/reports')">
           <div class="flex items-center gap-4">
-            <el-icon :size="40" class="text-indigo-500"><Document /></el-icon>
+            <el-icon :size="40" class="text-teal-600"><Document /></el-icon>
             <div>
               <div class="font-semibold">评估报告</div>
               <div class="text-sm text-slate-500">查看历史面试分析</div>
@@ -47,9 +47,9 @@
         </el-card>
       </el-col>
       <el-col :xs="24" :sm="8">
-        <el-card shadow="hover" class="cursor-pointer" @click="router.push('/growth')">
+        <el-card shadow="hover" class="cursor-pointer border-0 shadow-sm" @click="router.push('/growth')">
           <div class="flex items-center gap-4">
-            <el-icon :size="40" class="text-emerald-500"><TrendCharts /></el-icon>
+            <el-icon :size="40" class="text-cyan-600"><TrendCharts /></el-icon>
             <div>
               <div class="font-semibold">成长曲线</div>
               <div class="text-sm text-slate-500">能力变化一目了然</div>
@@ -58,9 +58,9 @@
         </el-card>
       </el-col>
       <el-col :xs="24" :sm="8">
-        <el-card shadow="hover" class="cursor-pointer" @click="router.push('/knowledge')">
+        <el-card shadow="hover" class="cursor-pointer border-0 shadow-sm" @click="router.push('/knowledge')">
           <div class="flex items-center gap-4">
-            <el-icon :size="40" class="text-amber-500"><Reading /></el-icon>
+            <el-icon :size="40" class="text-slate-500"><Reading /></el-icon>
             <div>
               <div class="font-semibold">知识库</div>
               <div class="text-sm text-slate-500">系统复习面试知识点</div>
@@ -149,7 +149,7 @@ const stats = ref({
 })
 
 const scoreStyle = computed(() =>
-  stats.value.latestScore != null ? { color: '#4f46e5', fontWeight: 'bold' } : {},
+  stats.value.latestScore != null ? { color: '#0d9488', fontWeight: 'bold' } : {},
 )
 
 const STATUS_LABELS: Record<string, string> = {
