@@ -82,7 +82,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT || 22 }}
-          source: "release.tar.gz,deploy/scripts/install-artifacts.sh"
+          source: release.tar.gz
           target: /tmp
 
       - name: Install on server
@@ -96,9 +96,16 @@ jobs:
           script: |
             set -e
             APP_DIR="${{ vars.APP_DIR || '/opt/ai-interview' }}"
-            INSTALL_SCRIPT="/tmp/deploy/scripts/install-artifacts.sh"
+            RELEASE_TAR="/tmp/release.tar.gz"
+            INSTALL_SCRIPT="${APP_DIR}/deploy/scripts/install-artifacts.sh"
+            if [[ ! -f "$RELEASE_TAR" ]]; then
+              echo "错误: 找不到 ${RELEASE_TAR}"
+              ls -la /tmp/
+              exit 1
+            fi
             if [[ ! -f "$INSTALL_SCRIPT" ]]; then
-              INSTALL_SCRIPT="/tmp/install-artifacts.sh"
+              echo "错误: 找不到 ${INSTALL_SCRIPT}，请确认 install-artifacts.sh 已 push 到 GitHub"
+              exit 1
             fi
             chmod +x "$INSTALL_SCRIPT"
-            bash "$INSTALL_SCRIPT" /tmp/release.tar.gz
+            bash "$INSTALL_SCRIPT" "$RELEASE_TAR"
