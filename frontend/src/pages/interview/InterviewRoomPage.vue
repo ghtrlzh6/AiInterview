@@ -346,6 +346,26 @@ function cleanForSpeech(text: string) {
     .replace(/\n/g, ' ')
 }
 
+function showLive2D() {
+  const live2d =
+    document.getElementById('live2d-widget') ||
+    document.getElementById('live2dcanvas')
+
+  if (live2d) {
+    live2d.style.display = 'block'
+  }
+}
+
+function stopLive2D() {
+  const live2d =
+    document.getElementById('live2d-widget') ||
+    document.getElementById('live2dcanvas')
+
+  if (live2d) {
+    live2d.style.display = 'none'
+  }
+}
+
 watch(() => interview.messages.length, scrollBottom)
 watch(
   () => interview.messages.length,
@@ -432,6 +452,7 @@ async function handleEnd() {
 onMounted(async () => {
   startRoomTimer()
   await startCamera()
+  
     if ((window as any).L2Dwidget) {
     ;(window as any).L2Dwidget.init({
       model: {
@@ -472,6 +493,9 @@ onMounted(async () => {
 
 onUnmounted(() => {
   stopCamera()
+  // 停止语音播放 摄像头和暂停live2d
+  stopLive2D()
+  speechSynthesis.cancel()
   if (timerId) {
     window.clearInterval(timerId)
     timerId = 0
